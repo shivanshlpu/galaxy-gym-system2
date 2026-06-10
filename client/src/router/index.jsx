@@ -4,6 +4,7 @@ import Layout from '../components/common/Layout';
 import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
 import Members from '../pages/Members';
+import ExpiredMembers from '../pages/ExpiredMembers';
 import MemberDetail from '../pages/MemberDetail';
 import Attendance from '../pages/Attendance';
 import Payments from '../pages/Payments';
@@ -35,6 +36,7 @@ const AppRouter = () => {
           <Route index element={<Launchpad />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="members" element={<Members />} />
+          <Route path="expired-members" element={<ExpiredMembers />} />
           <Route path="members/:id" element={<MemberDetail />} />
           <Route path="attendance" element={<Attendance />} />
           <Route path="payments" element={<Payments />} />

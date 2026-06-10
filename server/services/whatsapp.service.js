@@ -44,6 +44,13 @@ const sendExpired = async (member) => {
   return sendAndLog(member, 'expired', message, settings?.expiredPoster);
 };
 
+const sendRenewal = async (member, planName) => {
+  const message = getTemplate('renewal', { member, planName });
+  // You could also add a renewal poster if needed
+  return sendAndLog(member, 'renewal', message);
+};
+
+
 const sendInactive = async (member, absentDays) => {
   const message = getTemplate('inactive', { member, absentDays });
   return sendAndLog(member, 'inactive', message);
@@ -122,4 +129,4 @@ const sendByType = async (memberId, type) => {
   }
 };
 
-module.exports = { sendMessage, sendReminder, sendWelcome, sendExpired, sendInactive, sendByType, sendMarketingBulk };
+module.exports = { sendMessage, sendReminder, sendWelcome, sendExpired, sendRenewal, sendInactive, sendByType, sendMarketingBulk };

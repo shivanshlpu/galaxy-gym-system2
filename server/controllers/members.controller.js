@@ -21,6 +21,7 @@ const getMembers = async (req, res, next) => {
       ];
     }
     if (status) query.status = status;
+    else query.status = { $nin: ['Deleted', 'Expired'] };
     if (plan) query.membershipPlan = plan;
     if (gender) query.gender = gender;
 
@@ -282,6 +283,74 @@ const uploadPhoto = async (req, res, next) => {
   }
 };
 
+// POST /api/v1/members/:id/renew
+const renewMember = async (req, res, next) => {
+  try {
+    const { membershipPlan, membershipStartDate, paymentMethod, paymentStatus, notes } = req.body;
+
+    const member = await Member.findById(req.params.id);
+    if (!member) {
+      return res.status(404).json({ success: false, error: 'Member not found.', code: 'NOT_FOUND' });
+    }
+
+    const plan = await MembershipPlan.findById(membershipPlan);
+    if (!plan) {
+      return res.status(404).json({ success: false, error: 'Membership plan not found.', code: 'NOT_FOUND' });
+    }
+
+    const startDate = new Date(membershipStartDate);
+    const expiryDate = addDays(startDate, plan.durationDays);
+
+    // Update Member
+    const updatedMember = await Member.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'Active',
+        membershipPlan: plan._id,
+        membershipStartDate: startDate,
+        membershipExpiryDate: expiryDate,
+        paymentStatus: paymentStatus || 'Paid',
+        paymentMethod: paymentMethod || 'Cash',
+      },
+      { new: true, runValidators: true }
+    ).populate('membershipPlan', 'name durationDays price');
+
+    // Create Payment if Paid
+    if (paymentStatus === 'Paid') {
+      await Payment.create({
+        member: member._id,
+        amount: plan.price,
+        paymentDate: new Date(),
+        paymentMethod: paymentMethod || 'Cash',
+        plan: plan._id,
+        notes: notes || 'Renewal Payment',
+      });
+    }
+
+    // Send WhatsApp Renewal Message
+    if (updatedMember.whatsappOptIn && process.env.WHATSAPP_ENABLED === 'true') {
+      try {
+        await whatsappService.sendRenewal(updatedMember, plan.name);
+      } catch (err) {
+        console.error('Failed to send WhatsApp renewal message:', err);
+      }
+    }
+
+    // Log activity
+    await ActivityLog.create({
+      action: 'member_renewed',
+      entityType: 'Member',
+      entityId: updatedMember._id,
+      performedBy: req.user.id,
+      details: { fullName: updatedMember.fullName, planName: plan.name },
+    });
+
+    res.json({ success: true, data: updatedMember, message: 'Member renewed successfully.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // GET /api/v1/members/stats/summary
 const getMemberStats = async (req, res, next) => {
   try {
@@ -354,6 +423,7 @@ module.exports = {
   updateMember,
   deleteMember,
   uploadPhoto,
+  renewMember,
   getMemberStats,
   getExpiringMembers,
   getInactiveMembers,

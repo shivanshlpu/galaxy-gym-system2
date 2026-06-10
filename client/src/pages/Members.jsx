@@ -93,7 +93,6 @@ const Members = () => {
             className="input-field w-full sm:w-auto py-2 h-[38px] min-h-0 text-sm">
             <option value="">All Status</option>
             <option value="Active">Active</option>
-            <option value="Expired">Expired</option>
             <option value="Inactive">Inactive</option>
           </select>
         </div>

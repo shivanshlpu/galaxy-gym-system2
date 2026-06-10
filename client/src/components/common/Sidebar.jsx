@@ -10,6 +10,7 @@ const navItems = [
     { path: '/', icon: Home, label: 'Launchpad' },
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/members', icon: Users, label: 'Members' },
+    { path: '/expired-members', icon: Users, label: 'Expired Members' },
     { path: '/attendance', icon: CalendarCheck, label: 'Attendance' },
     { path: '/payments', icon: CreditCard, label: 'Payments' },
   ]},

@@ -12,6 +12,7 @@ const {
   getMemberStats,
   getExpiringMembers,
   getInactiveMembers,
+  renewMember,
 } = require('../controllers/members.controller');
 
 // All routes require authentication
@@ -29,5 +30,6 @@ router.get('/:id', getMember);
 router.put('/:id', updateMember);
 router.delete('/:id', deleteMember);
 router.post('/:id/photo', upload.single('photo'), uploadPhoto);
+router.post('/:id/renew', renewMember);
 
 module.exports = router;
