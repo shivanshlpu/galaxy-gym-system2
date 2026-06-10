@@ -107,47 +107,58 @@ const Members = () => {
       {/* Table */}
       <div className="iron-card p-0 overflow-x-auto">
         <table className="w-full text-left border-collapse">
-          <thead>
+          <thead className="hidden lg:table-header-group">
             <tr className="border-b border-border bg-bg-surface">
               <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Member</th>
-              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 hidden md:table-cell">Phone</th>
-              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 hidden lg:table-cell">Plan</th>
-              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 hidden lg:table-cell">Expiry</th>
+              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Phone</th>
+              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Plan</th>
+              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Expiry</th>
               <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Days Left</th>
               <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Status</th>
               <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="flex flex-col lg:table-row-group">
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-text-muted"><Loader2 className="w-6 h-6 animate-spin mx-auto" strokeWidth={2} /></td></tr>
+              <tr className="flex lg:table-row"><td colSpan={7} className="w-full text-center py-12 text-text-muted"><Loader2 className="w-6 h-6 animate-spin mx-auto" strokeWidth={2} /></td></tr>
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-text-muted text-sm font-body uppercase tracking-widest">No members found</td></tr>
+              <tr className="flex lg:table-row"><td colSpan={7} className="w-full text-center py-12 text-text-muted text-sm font-body uppercase tracking-widest">No members found</td></tr>
             ) : data?.data?.map((member) => {
               const isExpired = member.status === 'Expired';
               return (
-                <tr key={member._id} className={`border-b border-border table-row-hover ${isExpired ? 'opacity-50' : ''}`}>
-                  <td className="px-6 py-4">
+                <tr key={member._id} className={`border-b border-border flex flex-col lg:table-row p-4 lg:p-0 gap-3 lg:gap-0 table-row-hover ${isExpired ? 'opacity-50' : ''}`}>
+                  <td className="px-2 lg:px-6 lg:py-4 flex justify-between items-start lg:table-cell">
                     <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 rounded bg-bg-raised border border-border flex items-center justify-center font-mono font-bold text-xs text-text-primary flex-shrink-0">
+                      <div className="w-10 h-10 lg:w-8 lg:h-8 rounded bg-bg-raised border border-border flex items-center justify-center font-mono font-bold text-sm lg:text-xs text-text-primary flex-shrink-0">
                         {member.fullName?.[0]}
                       </div>
                       <div>
-                        <p className={`text-sm font-semibold font-body text-white ${isExpired ? 'line-through text-text-muted' : ''}`}>{member.fullName}</p>
-                        <p className="text-xs font-body text-text-secondary">{member.memberId}</p>
+                        <p className={`text-base lg:text-sm font-semibold font-body text-white ${isExpired ? 'line-through text-text-muted' : ''}`}>{member.fullName}</p>
+                        <p className="text-xs font-mono text-text-secondary mt-0.5">{member.memberId} <span className="lg:hidden"> • {member.phone}</span></p>
                       </div>
                     </div>
                   </td>
-                  <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden md:table-cell ${isExpired ? 'line-through' : ''}`}>{member.phone}</td>
+                  <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.phone}</td>
                   <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.membershipPlan?.name || '—'}</td>
                   <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.membershipExpiryDate ? format(new Date(member.membershipExpiryDate), 'dd MMM yyyy') : '—'}</td>
-                  <td className="px-6 py-4">{getDaysLeftBadge(member.membershipExpiryDate)}</td>
-                  <td className="px-6 py-4">{statusBadge(member.status)}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => navigate(`/members/${member._id}`)} className="text-text-muted hover:text-white p-1 transition-colors"><Eye className="w-4 h-4" strokeWidth={2} /></button>
-                      <button onClick={() => handleEdit(member)} className="text-text-muted hover:text-white p-1 transition-colors"><Edit className="w-4 h-4" strokeWidth={2} /></button>
-                      <button onClick={() => handleDelete(member._id)} className="text-text-muted hover:text-danger p-1 transition-colors"><Trash2 className="w-4 h-4" strokeWidth={2} /></button>
+                  
+                  <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
+                    <div className="flex items-center justify-between lg:justify-start w-full bg-bg-surface lg:bg-transparent p-3 lg:p-0 rounded border border-border lg:border-none">
+                      <span className="lg:hidden text-[10px] font-bold text-text-muted uppercase tracking-wider">Days Left</span>
+                      {getDaysLeftBadge(member.membershipExpiryDate)}
+                    </div>
+                  </td>
+                  <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
+                    <div className="flex items-center justify-between lg:justify-start w-full bg-bg-surface lg:bg-transparent p-3 lg:p-0 rounded border border-border lg:border-none">
+                      <span className="lg:hidden text-[10px] font-bold text-text-muted uppercase tracking-wider">Status</span>
+                      {statusBadge(member.status)}
+                    </div>
+                  </td>
+                  <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
+                    <div className="flex items-center justify-end gap-3 lg:gap-2 mt-2 lg:mt-0 pt-3 lg:pt-0 border-t border-border lg:border-t-0">
+                      <button onClick={() => navigate(`/members/${member._id}`)} className="text-text-muted hover:text-white p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Eye className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
+                      <button onClick={() => handleEdit(member)} className="text-text-muted hover:text-white p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Edit className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
+                      <button onClick={() => handleDelete(member._id)} className="text-text-muted hover:text-danger p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Trash2 className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
                     </div>
                   </td>
                 </tr>

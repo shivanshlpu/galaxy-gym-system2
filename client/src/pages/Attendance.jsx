@@ -69,58 +69,61 @@ const Attendance = () => {
       {/* Attendance Grid */}
       <div className="iron-card p-0 overflow-x-auto">
         <table className="w-full text-left border-collapse">
-          <thead>
+          <thead className="hidden lg:table-header-group">
             <tr className="border-b border-border bg-bg-surface">
               <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Member</th>
-              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 hidden md:table-cell">Phone</th>
-              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 hidden lg:table-cell">Plan</th>
-              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 hidden lg:table-cell text-center">Last 7 Days</th>
+              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Phone</th>
+              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4">Plan</th>
+              <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 text-center">Last 7 Days</th>
               <th className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-muted px-6 py-4 text-center">Today</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="flex flex-col lg:table-row-group">
             {isLoading ? (
-              <tr><td colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-text-muted" strokeWidth={2} /></td></tr>
+              <tr className="flex lg:table-row"><td colSpan={5} className="w-full text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-text-muted" strokeWidth={2} /></td></tr>
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-12 text-text-muted font-body text-xs uppercase tracking-widest">No active members</td></tr>
+              <tr className="flex lg:table-row"><td colSpan={5} className="w-full text-center py-12 text-text-muted font-body text-xs uppercase tracking-widest">No active members</td></tr>
             ) : data?.data?.map((member) => (
-              <tr key={member._id} className="border-b border-border table-row-hover">
-                <td className="px-6 py-4">
+              <tr key={member._id} className="border-b border-border flex flex-col lg:table-row p-4 lg:p-0 gap-4 lg:gap-0 table-row-hover">
+                <td className="px-2 lg:px-6 lg:py-4 flex justify-between items-start lg:table-cell">
                   <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded bg-bg-raised border border-border flex items-center justify-center font-mono font-bold text-xs text-text-primary flex-shrink-0">
+                    <div className="w-10 h-10 lg:w-8 lg:h-8 rounded bg-bg-raised border border-border flex items-center justify-center font-mono font-bold text-sm lg:text-xs text-text-primary flex-shrink-0">
                       {member.fullName?.[0]}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold font-body text-white">{member.fullName}</p>
-                      <p className="text-xs font-mono text-text-secondary">{member.memberId}</p>
+                      <p className="text-base lg:text-sm font-semibold font-body text-white">{member.fullName}</p>
+                      <p className="text-xs font-mono text-text-secondary mt-0.5">{member.memberId} <span className="lg:hidden"> • {member.phone}</span></p>
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm font-body text-text-secondary hidden md:table-cell">{member.phone}</td>
+                <td className="px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell">{member.phone}</td>
                 <td className="px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell">{member.membershipPlan?.name || '—'}</td>
-                <td className="px-5 py-4 hidden lg:table-cell">
-                  <div className="flex items-center justify-center gap-1">
-                    {Array.from({ length: 7 }).map((_, idx) => {
-                      const dayRecord = member.weekStreak?.find((r) => {
-                        const recordDate = new Date(r.date).toDateString();
-                        const targetDate = new Date();
-                        targetDate.setDate(targetDate.getDate() - (6 - idx));
-                        return recordDate === targetDate.toDateString();
-                      });
-                      return (
-                        <div key={idx}
-                          className={`w-3 h-3 rounded-sm border border-border ${dayRecord?.status === 'Present' ? 'bg-accent-primary border-accent-primary shadow-[0_0_8px_rgba(204,255,0,0.4)]' : dayRecord?.status === 'Absent' ? 'bg-danger border-danger' : 'bg-bg-raised'}`}
-                          title={dayRecord?.status || 'No data'} />
-                      );
-                    })}
+                <td className="px-2 lg:px-5 lg:py-4 block lg:table-cell w-full">
+                  <div className="flex items-center justify-between lg:justify-center w-full bg-bg-surface lg:bg-transparent p-3 lg:p-0 rounded border border-border lg:border-none">
+                    <span className="lg:hidden text-[10px] font-bold text-text-muted uppercase tracking-wider">Last 7 Days</span>
+                    <div className="flex items-center justify-center gap-1.5 lg:gap-1">
+                      {Array.from({ length: 7 }).map((_, idx) => {
+                        const dayRecord = member.weekStreak?.find((r) => {
+                          const recordDate = new Date(r.date).toDateString();
+                          const targetDate = new Date();
+                          targetDate.setDate(targetDate.getDate() - (6 - idx));
+                          return recordDate === targetDate.toDateString();
+                        });
+                        return (
+                          <div key={idx}
+                            className={`w-3.5 h-3.5 lg:w-3 lg:h-3 rounded-sm border border-border ${dayRecord?.status === 'Present' ? 'bg-accent-primary border-accent-primary shadow-[0_0_8px_rgba(204,255,0,0.4)]' : dayRecord?.status === 'Absent' ? 'bg-danger border-danger' : 'bg-bg-raised'}`}
+                            title={dayRecord?.status || 'No data'} />
+                        );
+                      })}
+                    </div>
                   </div>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex justify-center gap-2">
+                <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
+                  <div className="flex justify-between lg:justify-center items-center gap-2 mt-1 lg:mt-0">
                     <button
                       onClick={() => markMutation.mutate([{ memberId: member._id, status: 'Present' }])}
                       disabled={markMutation.isPending}
-                      className={`px-3 py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[80px] border
+                      className={`flex-1 lg:flex-none px-3 py-2.5 lg:py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[80px] border
                         ${member.todayStatus === 'Present'
                           ? 'bg-accent-primary text-black border-accent-primary shadow-[0_0_12px_rgba(204,255,0,0.2)]'
                           : 'bg-transparent text-text-muted border-border hover:border-accent-primary hover:text-accent-primary'}`}
@@ -130,7 +133,7 @@ const Attendance = () => {
                     <button
                       onClick={() => markMutation.mutate([{ memberId: member._id, status: 'Absent' }])}
                       disabled={markMutation.isPending}
-                      className={`px-3 py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[80px] border
+                      className={`flex-1 lg:flex-none px-3 py-2.5 lg:py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[80px] border
                         ${member.todayStatus === 'Absent'
                           ? 'bg-danger text-white border-danger shadow-[0_0_12px_rgba(255,51,51,0.2)]'
                           : 'bg-transparent text-text-muted border-border hover:border-danger hover:text-danger'}`}
