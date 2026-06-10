@@ -1,25 +1,39 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
+const { MongoStore } = require('wwebjs-mongo');
+const mongoose = require('mongoose');
 const qrcode = require('qrcode-terminal');
 const express = require('express');
+require('dotenv').config();
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
+    .then(() => console.log('✅ Connected to MongoDB for WhatsApp Session'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+const store = new MongoStore({ mongoose: mongoose });
+
 const client = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new RemoteAuth({
+        store: store,
+        backupSyncIntervalMs: 300000 // Saves session every 5 mins
+    }),
     puppeteer: {
         headless: true,
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-extensions']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
     }
 });
 
 client.on('qr', (qr) => {
-    // Generate and scan this code with your phone
     console.log('\n======================================================');
     console.log('📱 SCAN THIS QR CODE WITH YOUR WHATSAPP LINKED DEVICES:');
     console.log('======================================================\n');
     qrcode.generate(qr, { small: true });
+});
+
+client.on('remote_session_saved', () => {
+    console.log('💾 WhatsApp Session successfully saved to MongoDB!');
 });
 
 client.on('ready', () => {
