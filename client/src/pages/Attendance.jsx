@@ -12,7 +12,7 @@ const Attendance = () => {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['todayAttendance', selectedDate],
     queryFn: async () => {
-      const { data } = await api.get('/attendance/today');
+      const { data } = await api.get(`/attendance/today?date=${selectedDate}`);
       return data;
     },
   });
@@ -21,7 +21,6 @@ const Attendance = () => {
     mutationFn: (records) => api.post('/attendance/bulk', { records, date: selectedDate }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todayAttendance'] });
-      queryClient.invalidateQueries({ queryKey: ['attendanceToday'] });
       toast.success('Attendance updated');
     },
   });

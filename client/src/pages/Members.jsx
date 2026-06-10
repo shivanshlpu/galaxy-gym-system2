@@ -60,6 +60,9 @@ const Members = () => {
       setShowForm(false);
       setEditingMember(null);
     },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to save member');
+    },
   });
 
   const handleEdit = (member) => { setEditingMember(member); setShowForm(true); };

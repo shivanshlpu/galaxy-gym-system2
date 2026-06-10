@@ -113,8 +113,9 @@ const updateAttendance = async (req, res, next) => {
 // GET /api/v1/attendance/today
 const getTodayAttendance = async (req, res, next) => {
   try {
-    const today = getStartOfDay();
-    const endToday = getEndOfDay();
+    const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+    const today = getStartOfDay(targetDate);
+    const endToday = getEndOfDay(targetDate);
 
     // Get all active members
     const activeMembers = await Member.find({ status: 'Active' })
@@ -157,7 +158,7 @@ const getTodayAttendance = async (req, res, next) => {
     }));
 
     const presentCount = todayRecords.filter((r) => r.status === 'Present').length;
-    const absentCount = activeMembers.length - presentCount;
+    const absentCount = todayRecords.filter((r) => r.status === 'Absent').length;
 
     res.json({
       success: true,
