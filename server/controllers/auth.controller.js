@@ -2,6 +2,71 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User.model');
 const ActivityLog = require('../models/ActivityLog.model');
 
+// POST /api/v1/auth/register
+const register = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide name, email, and password.',
+        code: 'MISSING_FIELDS',
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'An account with this email already exists.',
+        code: 'USER_EXISTS',
+      });
+    }
+
+    // Create user
+    const user = await User.create({
+      username: name,
+      email: email.toLowerCase(),
+      password,
+      role: 'admin'
+    });
+
+    // Generate token
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    // Log activity
+    await ActivityLog.create({
+      action: 'admin_register',
+      entityType: 'User',
+      entityId: user._id,
+      performedBy: user._id,
+      details: { email: user.email },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user._id,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+        },
+      },
+      message: 'Account created successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // POST /api/v1/auth/login
 const login = async (req, res, next) => {
   try {
@@ -146,4 +211,4 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { login, logout, getMe, changePassword };
+module.exports = { login, register, logout, getMe, changePassword };

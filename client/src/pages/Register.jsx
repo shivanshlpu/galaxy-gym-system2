@@ -3,11 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 
-const Login = () => {
+const Register = () => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading, error, clearError, isAuthenticated } = useAuthStore();
+  const { register, isLoading, error, clearError, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
 
   // Redirect if already logged in
@@ -19,7 +20,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     clearError();
-    const success = await login({ email, password });
+    const success = await register({ name, email, password });
     if (success) {
       navigate('/', { replace: true });
     }
@@ -36,20 +37,32 @@ const Login = () => {
 
         {/* Card */}
         <div className="iron-card p-8">
-          <h1 className="font-body font-bold text-xl text-white text-center mb-2 uppercase tracking-wide">Authentication Required</h1>
-          <p className="text-text-muted text-sm font-body text-center mb-8">Enter your operator credentials</p>
+          <h1 className="font-body font-bold text-xl text-white text-center mb-2 uppercase tracking-wide">Register New Admin</h1>
+          <p className="text-text-muted text-sm font-body text-center mb-8">Create your operator credentials</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Email or Username</label>
+              <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Full Name</label>
               <input
                 type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Operator Name"
+                className="input-field"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Email</label>
+              <input
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="operator@ironcore.com"
                 className="input-field"
                 required
-                autoFocus
               />
             </div>
 
@@ -60,9 +73,10 @@ const Login = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter access code"
+                  placeholder="Create access code (min 6 chars)"
                   className="input-field pr-10"
                   required
+                  minLength={6}
                 />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-white p-1 transition-colors">
                   {showPassword ? <EyeOff className="w-4 h-4" strokeWidth={2} /> : <Eye className="w-4 h-4" strokeWidth={2} />}
@@ -80,14 +94,14 @@ const Login = () => {
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" strokeWidth={2.5} />
                 ) : (
-                  'AUTHENTICATE'
+                  'CREATE ACCOUNT'
                 )}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <Link to="/register" className="text-text-muted hover:text-accent-primary text-xs font-body transition-colors">
-              Don't have an account? Sign up here
+            <Link to="/login" className="text-text-muted hover:text-accent-primary text-xs font-body transition-colors">
+              Already have an account? Login here
             </Link>
           </div>
         </div>
@@ -100,4 +114,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Register;
