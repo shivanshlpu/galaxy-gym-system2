@@ -1,0 +1,347 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Building, CreditCard, Bell, MessageCircle, User, Plus, Edit, Trash2, Loader2, Check, Wifi, WifiOff, Dumbbell, Megaphone, Image as ImageIcon } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '../lib/axios';
+import useAuthStore from '../store/authStore';
+
+const Settings = () => {
+  const [activeSection, setActiveSection] = useState('gym');
+  const { user } = useAuthStore();
+
+  const sections = [
+    { id: 'gym', label: 'Gym Info', icon: Building },
+    { id: 'plans', label: 'Membership Plans', icon: CreditCard },
+    { id: 'trainers', label: 'Trainers', icon: Dumbbell },
+    { id: 'reminders', label: 'Reminders', icon: Bell },
+    { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+    { id: 'account', label: 'Account', icon: User },
+  ];
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-6">
+      {/* Sidebar */}
+      <div className="lg:w-56 flex-shrink-0">
+        <div className="iron-card p-2 flex lg:flex-col gap-1 overflow-x-auto">
+          {sections.map((s) => (
+            <button key={s.id} onClick={() => setActiveSection(s.id)}
+              className={`flex items-center gap-3 px-4 py-3 text-xs font-body font-bold uppercase tracking-wider transition-colors whitespace-nowrap rounded
+                ${activeSection === s.id ? 'bg-bg-raised text-accent-primary border border-border' : 'border border-transparent text-text-secondary hover:text-white hover:bg-bg-surface'}`}>
+              <s.icon className="w-4 h-4" strokeWidth={2} /> {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1">
+        {activeSection === 'gym' && <GymInfoSection user={user} />}
+        {activeSection === 'plans' && <PlansSection />}
+        {activeSection === 'trainers' && <TrainersSection />}
+        { activeSection === 'reminders' && <RemindersSection /> }
+        { activeSection === 'whatsapp' && <WhatsAppSection /> }
+        { activeSection === 'account' && <AccountSection /> }
+      </div>
+    </div>
+  );
+};
+
+const GymInfoSection = ({ user }) => (
+  <div className="iron-card p-6">
+    <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">Gym Information</h2>
+    <div className="space-y-5 max-w-md">
+      <div>
+        <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Gym Name</label>
+        <input defaultValue={user?.gymName || 'GymOS Fitness Center'} className="input-field" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Contact Phone</label>
+        <input placeholder="Gym contact number" className="input-field" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Address</label>
+        <textarea placeholder="Gym address" className="input-field h-24 resize-none" />
+      </div>
+      <button className="btn-primary mt-4">SAVE CHANGES</button>
+    </div>
+  </div>
+);
+
+const PlansSection = () => {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editPlan, setEditPlan] = useState(null);
+  const [form, setForm] = useState({ name: '', durationDays: '', price: '', description: '' });
+
+
+  const { data: plans } = useQuery({
+    queryKey: ['plans'],
+    queryFn: async () => { const { data } = await api.get('/plans'); return data.data; },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (data) => editPlan ? api.put(`/plans/${editPlan._id}`, data) : api.post('/plans', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      toast.success(editPlan ? 'Plan updated' : 'Plan created');
+      resetForm();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => api.delete(`/plans/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['plans'] }); toast.success('Plan deactivated'); },
+  });
+
+  const resetForm = () => { setShowForm(false); setEditPlan(null); setForm({ name: '', durationDays: '', price: '', description: '' }); };
+  const startEdit = (plan) => { setEditPlan(plan); setForm({ name: plan.name, durationDays: plan.durationDays, price: plan.price, description: plan.description || '' }); setShowForm(true); };
+
+  return (
+    <div className="iron-card p-6">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+        <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider">Membership Plans</h2>
+        <button onClick={() => { resetForm(); setShowForm(true); }} className="btn-primary text-[10px] flex items-center gap-2 py-1.5 px-3">
+          <Plus className="w-3.5 h-3.5" strokeWidth={2} /> ADD PLAN
+        </button>
+      </div>
+
+      <div className="space-y-3 mb-6">
+        {plans?.map((plan) => (
+          <div key={plan._id} className="flex items-center justify-between py-4 px-5 bg-bg-surface border border-border table-row-hover transition-colors">
+            <div>
+              <p className="text-sm font-body font-bold text-white uppercase tracking-wider">{plan.name}</p>
+              <p className="text-[10px] font-mono text-text-secondary mt-1 tracking-widest">{plan.durationDays} DAYS • {plan.description?.toUpperCase() || ''}</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="font-mono font-bold text-xl text-accent-primary">₹{plan.price}</span>
+              <button onClick={() => startEdit(plan)} className="text-text-muted hover:text-white transition-colors p-1.5"><Edit className="w-4 h-4" strokeWidth={2} /></button>
+              <button onClick={() => deleteMutation.mutate(plan._id)} className="text-text-muted hover:text-danger transition-colors p-1.5"><Trash2 className="w-4 h-4" strokeWidth={2} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showForm && (
+        <div className="border-t border-border pt-6 space-y-5 max-w-md">
+          <h3 className="text-[10px] font-body font-bold text-white uppercase tracking-wider">{editPlan ? 'Edit Plan' : 'New Plan'}</h3>
+          <input placeholder="PLAN NAME" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" />
+          <div className="grid grid-cols-2 gap-4">
+            <input type="number" placeholder="DURATION (DAYS)" value={form.durationDays} onChange={(e) => setForm({ ...form, durationDays: e.target.value })} className="input-field" />
+            <input type="number" placeholder="PRICE (₹)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="input-field" />
+          </div>
+          <input placeholder="DESCRIPTION" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field" />
+          
+
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => saveMutation.mutate({ ...form, durationDays: parseInt(form.durationDays), price: parseFloat(form.price) })}
+              disabled={saveMutation.isPending} className="btn-primary flex-1 flex justify-center items-center gap-2">
+              {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />} SAVE
+            </button>
+            <button onClick={resetForm} className="px-4 py-2 bg-transparent border border-border text-white text-xs font-bold font-body uppercase tracking-widest rounded hover:bg-bg-raised transition-colors flex-1">CANCEL</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RemindersSection = () => {
+  const queryClient = useQueryClient();
+  const [cronTime, setCronTime] = useState('08:00');
+  
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => { 
+      const { data } = await api.get('/settings'); 
+      if (data.data?.cronTime) setCronTime(data.data.cronTime);
+      return data.data; 
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (data) => api.put('/settings', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      toast.success('Reminder time updated! Cron job rescheduled.');
+    },
+  });
+
+  const handleSave = () => {
+    saveMutation.mutate({ cronTime });
+  };
+
+  return (
+    <div className="iron-card p-6">
+      <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">Reminder Settings</h2>
+      
+      <div className="bg-bg-raised border border-border border-l-4 border-l-accent-primary p-4 mb-6">
+        <p className="text-xs font-body text-text-secondary">
+          WhatsApp Reminders are automatically sent daily starting from <strong>5 days before</strong> a member's expiry date.
+        </p>
+      </div>
+
+      <div className="space-y-4 max-w-sm">
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Daily Execution Time</label>
+          <input 
+            type="time" 
+            value={cronTime} 
+            onChange={(e) => setCronTime(e.target.value)} 
+            className="input-field" 
+          />
+        </div>
+      </div>
+
+      <button 
+        onClick={handleSave} 
+        disabled={saveMutation.isPending}
+        className="btn-primary mt-6 flex justify-center items-center gap-2"
+      >
+        {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+        SAVE SETTINGS
+      </button>
+    </div>
+  );
+};
+
+const WhatsAppSection = () => {
+  const { data: status } = useQuery({
+    queryKey: ['whatsappStatus'],
+    queryFn: async () => { const { data } = await api.get('/whatsapp/status'); return data.data; },
+  });
+
+  return (
+    <div className="iron-card p-6">
+      <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">WhatsApp Integration</h2>
+      <div className="flex items-center gap-3 mb-5">
+        {status?.connected ? (
+          <><Wifi className="w-5 h-5 text-accent-primary" strokeWidth={2} /><span className="text-accent-primary font-mono font-bold text-sm tracking-widest uppercase">Connected</span></>
+        ) : (
+          <><WifiOff className="w-5 h-5 text-danger" strokeWidth={2} /><span className="text-danger font-mono font-bold text-sm tracking-widest uppercase">Disconnected</span></>
+        )}
+      </div>
+      <p className="text-[10px] font-body uppercase tracking-tag text-text-secondary mb-5">
+        {status?.enabled ? 'WhatsApp service is enabled.' : 'WhatsApp service is disabled. Set WHATSAPP_ENABLED=true in .env to enable.'}
+      </p>
+      <div className="bg-bg-raised border border-border border-l-4 border-l-warning p-4">
+        <p className="text-xs font-body text-text-secondary">To connect WhatsApp, ensure the OpenWA service is running and scan the QR code from the service dashboard.</p>
+      </div>
+    </div>
+  );
+};
+
+const AccountSection = () => {
+  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const mutation = useMutation({
+    mutationFn: (data) => api.put('/auth/change-password', data),
+    onSuccess: () => { toast.success('Password changed'); setForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); },
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (form.newPassword !== form.confirmPassword) return toast.error('Passwords do not match');
+    mutation.mutate({ currentPassword: form.currentPassword, newPassword: form.newPassword });
+  };
+
+  return (
+    <div className="iron-card p-6">
+      <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">Change Password</h2>
+      <form onSubmit={handleSubmit} className="space-y-5 max-w-md">
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Current Password</label>
+          <input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} className="input-field" required />
+        </div>
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">New Password</label>
+          <input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} className="input-field" required minLength={6} />
+        </div>
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Confirm New Password</label>
+          <input type="password" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} className="input-field" required />
+        </div>
+        <button type="submit" disabled={mutation.isPending} className="btn-primary flex items-center justify-center gap-2 mt-6 w-full sm:w-auto">
+          {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />} UPDATE PASSWORD
+        </button>
+      </form>
+    </div>
+  );
+};
+
+const TrainersSection = () => {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editTrainer, setEditTrainer] = useState(null);
+  const [form, setForm] = useState({ name: '', experienceYears: '', price: '', dietCharge: '' });
+
+  const { data: trainers } = useQuery({
+    queryKey: ['trainers'],
+    queryFn: async () => { const { data } = await api.get('/trainers/all'); return data.data; },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (data) => editTrainer ? api.put(`/trainers/${editTrainer._id}`, data) : api.post('/trainers', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trainers'] });
+      toast.success(editTrainer ? 'Trainer updated' : 'Trainer created');
+      resetForm();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => api.delete(`/trainers/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['trainers'] }); toast.success('Trainer removed'); },
+  });
+
+  const resetForm = () => { setShowForm(false); setEditTrainer(null); setForm({ name: '', experienceYears: '', price: '', dietCharge: '' }); };
+  const startEdit = (trainer) => { setEditTrainer(trainer); setForm({ name: trainer.name, experienceYears: trainer.experienceYears, price: trainer.price, dietCharge: trainer.dietCharge }); setShowForm(true); };
+
+  return (
+    <div className="iron-card p-6">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+        <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider">Trainers</h2>
+        <button onClick={() => { resetForm(); setShowForm(true); }} className="btn-primary text-[10px] flex items-center gap-2 py-1.5 px-3">
+          <Plus className="w-3.5 h-3.5" strokeWidth={2} /> ADD TRAINER
+        </button>
+      </div>
+
+      <div className="space-y-3 mb-6">
+        {trainers?.map((trainer) => (
+          <div key={trainer._id} className="flex items-center justify-between py-4 px-5 bg-bg-surface border border-border table-row-hover transition-colors">
+            <div>
+              <p className="text-sm font-body font-bold text-white uppercase tracking-wider">{trainer.name}</p>
+              <p className="text-[10px] font-mono text-text-secondary mt-1 tracking-widest">{trainer.experienceYears} YRS EXP • DIET: ₹{trainer.dietCharge}</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="font-mono font-bold text-xl text-accent-primary">₹{trainer.price}</span>
+              <button onClick={() => startEdit(trainer)} className="text-text-muted hover:text-white transition-colors p-1.5"><Edit className="w-4 h-4" strokeWidth={2} /></button>
+              <button onClick={() => deleteMutation.mutate(trainer._id)} className="text-text-muted hover:text-danger transition-colors p-1.5"><Trash2 className="w-4 h-4" strokeWidth={2} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showForm && (
+        <div className="border-t border-border pt-6 space-y-5 max-w-md">
+          <h3 className="text-[10px] font-body font-bold text-white uppercase tracking-wider">{editTrainer ? 'Edit Trainer' : 'New Trainer'}</h3>
+          <input placeholder="TRAINER NAME" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" />
+          <div className="grid grid-cols-2 gap-4">
+            <input type="number" placeholder="EXPERIENCE (YRS)" value={form.experienceYears} onChange={(e) => setForm({ ...form, experienceYears: e.target.value })} className="input-field" />
+            <input type="number" placeholder="CHARGE (₹)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="input-field" />
+          </div>
+          <input type="number" placeholder="DIET CHARGE (₹)" value={form.dietCharge} onChange={(e) => setForm({ ...form, dietCharge: e.target.value })} className="input-field" />
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => saveMutation.mutate({ ...form, experienceYears: parseInt(form.experienceYears), price: parseFloat(form.price), dietCharge: parseFloat(form.dietCharge) })}
+              disabled={saveMutation.isPending} className="btn-primary flex-1 flex justify-center items-center gap-2">
+              {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />} SAVE
+            </button>
+            <button onClick={resetForm} className="px-4 py-2 bg-transparent border border-border text-white text-xs font-bold font-body uppercase tracking-widest rounded hover:bg-bg-raised transition-colors flex-1">CANCEL</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+
+export default Settings;

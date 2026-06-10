@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Build
+client/dist/
+server/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# WhatsApp sessions
+.wwebjs_auth/
+.wwebjs_cache/
+.node-persist/
+_IGNORE_session/
+*.json
+!package.json
+!package-lock.json
+!manifest.json
