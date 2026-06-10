@@ -25,10 +25,7 @@ const Attendance = () => {
     },
   });
 
-  const handleToggle = (memberId, currentStatus) => {
-    const newStatus = currentStatus === 'Present' ? 'Absent' : 'Present';
-    markMutation.mutate([{ memberId, status: newStatus }]);
-  };
+
 
   const handleMarkAllPresent = () => {
     if (!data?.data) return;
@@ -119,18 +116,26 @@ const Attendance = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex justify-center">
+                  <div className="flex justify-center gap-2">
                     <button
-                      onClick={() => handleToggle(member._id, member.todayStatus)}
+                      onClick={() => markMutation.mutate([{ memberId: member._id, status: 'Present' }])}
                       disabled={markMutation.isPending}
-                      className={`px-4 py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[90px] border
+                      className={`px-3 py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[80px] border
                         ${member.todayStatus === 'Present'
                           ? 'bg-accent-primary text-black border-accent-primary shadow-[0_0_12px_rgba(204,255,0,0.2)]'
-                          : member.todayStatus === 'Absent'
-                          ? 'bg-danger text-white border-danger shadow-[0_0_12px_rgba(255,51,51,0.2)]'
                           : 'bg-transparent text-text-muted border-border hover:border-accent-primary hover:text-accent-primary'}`}
                     >
-                      {member.todayStatus || 'MARK'}
+                      PRESENT
+                    </button>
+                    <button
+                      onClick={() => markMutation.mutate([{ memberId: member._id, status: 'Absent' }])}
+                      disabled={markMutation.isPending}
+                      className={`px-3 py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[80px] border
+                        ${member.todayStatus === 'Absent'
+                          ? 'bg-danger text-white border-danger shadow-[0_0_12px_rgba(255,51,51,0.2)]'
+                          : 'bg-transparent text-text-muted border-border hover:border-danger hover:text-danger'}`}
+                    >
+                      ABSENT
                     </button>
                   </div>
                 </td>
