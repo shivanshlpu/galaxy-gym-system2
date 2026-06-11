@@ -7,7 +7,7 @@ const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
-app.use(express.json({ limit: '10mb' })); // Reduced limit to save memory
+app.use(express.json({ limit: '50mb' })); // Increased back to 50mb to prevent rejection of 5MB HD images
 
 let isReady = false;
 let isIdle = true; // Tracks if we are waiting for user to click connect
@@ -89,12 +89,19 @@ app.post('/send', async (req, res) => {
         
         let msgPayload = { text: message };
         if (mediaBase64) {
-            const matches = mediaBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-            if (matches && matches.length === 3) {
+            try {
+                let base64Data = mediaBase64;
+                if (mediaBase64.includes('base64,')) {
+                    base64Data = mediaBase64.split('base64,')[1];
+                }
                 msgPayload = {
-                    image: Buffer.from(matches[2], 'base64'),
+                    image: Buffer.from(base64Data, 'base64'),
                     caption: message
                 };
+            } catch (err) {
+                console.error("❌ Failed to parse media buffer:", err.message);
+                // Fallback to text if image parsing fails
+                msgPayload = { text: message };
             }
         }
         
