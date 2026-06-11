@@ -216,6 +216,9 @@ const WhatsAppSection = () => {
     mutationFn: async () => await api.post('/whatsapp/connect'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to trigger connection');
     }
   });
 

@@ -23,8 +23,8 @@ const client = new Client({
             '--disable-accelerated-2d-canvas', 
             '--no-first-run', 
             '--no-zygote', 
-            '--disable-gpu'
-            // Removed --single-process as it can cause OOM in some Chrome versions
+            '--disable-gpu',
+            '--js-flags="--max-old-space-size=256"'
         ]
     }
 });
