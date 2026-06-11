@@ -130,16 +130,6 @@ const Attendance = () => {
                     >
                       PRESENT
                     </button>
-                    <button
-                      onClick={() => markMutation.mutate([{ memberId: member._id, status: 'Absent' }])}
-                      disabled={markMutation.isPending}
-                      className={`flex-1 lg:flex-none px-3 py-2.5 lg:py-1.5 rounded text-xs font-bold font-body uppercase tracking-widest transition-all duration-150 min-w-[80px] border
-                        ${member.todayStatus === 'Absent'
-                          ? 'bg-danger text-white border-danger shadow-[0_0_12px_rgba(255,51,51,0.2)]'
-                          : 'bg-transparent text-text-muted border-border hover:border-danger hover:text-danger'}`}
-                    >
-                      ABSENT
-                    </button>
                   </div>
                 </td>
               </tr>

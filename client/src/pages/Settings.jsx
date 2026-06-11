@@ -210,21 +210,103 @@ const WhatsAppSection = () => {
     queryFn: async () => { const { data } = await api.get('/whatsapp/status'); return data.data; },
   });
 
+  const [testForm, setTestForm] = useState({ phone: '', messageText: '', template: 'Custom' });
+  const [imageFile, setImageFile] = useState(null);
+  
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      if (!testForm.phone || !testForm.messageText) throw new Error('Phone and message are required');
+      const formData = new FormData();
+      formData.append('phone', testForm.phone);
+      formData.append('messageText', testForm.messageText);
+      if (imageFile) formData.append('image', imageFile);
+      
+      const { data } = await api.post('/whatsapp/test', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Test message sent successfully!');
+      setTestForm({ ...testForm, messageText: '', template: 'Custom' });
+      setImageFile(null);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || err.message || 'Failed to send test message');
+    }
+  });
+
+  const handleTemplateChange = (e) => {
+    const template = e.target.value;
+    let text = '';
+    if (template === 'Welcome') text = '*Welcome to Galaxy Fitness Club!* 🏋️‍♂️\n\nYour membership has been activated. Let\'s get those gains! 💪';
+    else if (template === 'Reminder') text = 'Hi! Your membership is expiring soon. Please renew to continue your fitness journey! 🏃‍♂️';
+    
+    setTestForm({ ...testForm, template, messageText: text });
+  };
+
   return (
-    <div className="iron-card p-6">
-      <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">WhatsApp Integration</h2>
-      <div className="flex items-center gap-3 mb-5">
-        {status?.connected ? (
-          <><Wifi className="w-5 h-5 text-accent-primary" strokeWidth={2} /><span className="text-accent-primary font-mono font-bold text-sm tracking-widest uppercase">Connected</span></>
-        ) : (
-          <><WifiOff className="w-5 h-5 text-danger" strokeWidth={2} /><span className="text-danger font-mono font-bold text-sm tracking-widest uppercase">Disconnected</span></>
-        )}
+    <div className="space-y-6">
+      <div className="iron-card p-6">
+        <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">WhatsApp Integration</h2>
+        <div className="flex items-center gap-3 mb-5">
+          {status?.connected ? (
+            <><Wifi className="w-5 h-5 text-accent-primary" strokeWidth={2} /><span className="text-accent-primary font-mono font-bold text-sm tracking-widest uppercase">Connected</span></>
+          ) : (
+            <><WifiOff className="w-5 h-5 text-danger" strokeWidth={2} /><span className="text-danger font-mono font-bold text-sm tracking-widest uppercase">Disconnected</span></>
+          )}
+        </div>
+        <p className="text-[10px] font-body uppercase tracking-tag text-text-secondary mb-5">
+          {status?.enabled ? 'WhatsApp service is enabled.' : 'WhatsApp service is disabled. Set WHATSAPP_ENABLED=true in .env to enable.'}
+        </p>
+        <div className="bg-bg-raised border border-border border-l-4 border-l-warning p-4">
+          <p className="text-xs font-body text-text-secondary">To connect WhatsApp, ensure the OpenWA service is running and scan the QR code from the service dashboard.</p>
+        </div>
       </div>
-      <p className="text-[10px] font-body uppercase tracking-tag text-text-secondary mb-5">
-        {status?.enabled ? 'WhatsApp service is enabled.' : 'WhatsApp service is disabled. Set WHATSAPP_ENABLED=true in .env to enable.'}
-      </p>
-      <div className="bg-bg-raised border border-border border-l-4 border-l-warning p-4">
-        <p className="text-xs font-body text-text-secondary">To connect WhatsApp, ensure the OpenWA service is running and scan the QR code from the service dashboard.</p>
+
+      <div className="iron-card p-6">
+        <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">Test WhatsApp Notifications</h2>
+        <div className="space-y-4 max-w-md">
+          <div>
+            <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Test Phone Number (with Country Code)</label>
+            <input placeholder="e.g. 919876543210" value={testForm.phone} onChange={(e) => setTestForm({ ...testForm, phone: e.target.value })} className="input-field" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Message Template</label>
+            <select value={testForm.template} onChange={handleTemplateChange} className="input-field">
+              <option value="Custom">Custom Message</option>
+              <option value="Welcome">Welcome Message Test</option>
+              <option value="Reminder">Expiry Reminder Test</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Message Text</label>
+            <textarea placeholder="Type your message..." value={testForm.messageText} onChange={(e) => setTestForm({ ...testForm, messageText: e.target.value })} className="input-field h-32 resize-none" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Attach Image (Optional, PNG/JPG)</label>
+            <div className="flex items-center gap-3">
+              <label className="cursor-pointer bg-bg-raised border border-border px-4 py-2 rounded text-xs font-body font-bold text-white hover:border-accent-primary transition-colors flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                {imageFile ? 'CHANGE IMAGE' : 'SELECT IMAGE'}
+                <input type="file" accept="image/png, image/jpeg, image/jpg" className="hidden" onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) setImageFile(e.target.files[0]);
+                }} />
+              </label>
+              {imageFile && <span className="text-xs text-accent-primary font-mono truncate max-w-[200px]">{imageFile.name}</span>}
+            </div>
+            <p className="text-[10px] text-text-muted mt-2">Maximum file size: 5MB.</p>
+          </div>
+          <button 
+            onClick={() => testMutation.mutate()} 
+            disabled={testMutation.isPending || !status?.connected}
+            className="btn-primary mt-4 flex items-center justify-center gap-2 w-full sm:w-auto"
+          >
+            {testMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} /> : <MessageCircle className="w-4 h-4" />}
+            SEND TEST MESSAGE
+          </button>
+        </div>
       </div>
     </div>
   );

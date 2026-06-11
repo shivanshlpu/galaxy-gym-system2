@@ -158,7 +158,7 @@ const getTodayAttendance = async (req, res, next) => {
     }));
 
     const presentCount = todayRecords.filter((r) => r.status === 'Present').length;
-    const absentCount = todayRecords.filter((r) => r.status === 'Absent').length;
+    const absentCount = activeMembers.length - presentCount;
 
     res.json({
       success: true,

@@ -4,6 +4,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 
 // Placeholder WhatsApp controller (module is modular, controlled by WHATSAPP_ENABLED flag)
 router.use(verifyToken);
+const upload = require('../middleware/upload.middleware');
 
 // GET /api/v1/whatsapp/status
 router.get('/status', (req, res) => {
@@ -16,6 +17,31 @@ router.get('/status', (req, res) => {
       message: enabled ? 'WhatsApp service is active and connected.' : 'WhatsApp service is disabled',
     },
   });
+});
+
+// POST /api/v1/whatsapp/test
+router.post('/test', upload.single('image'), async (req, res) => {
+  if (process.env.WHATSAPP_ENABLED !== 'true') {
+    return res.json({ success: false, error: 'WhatsApp service is disabled.', code: 'WHATSAPP_DISABLED' });
+  }
+  const whatsappService = require('../services/whatsapp.service');
+  try {
+    const { phone, messageText } = req.body;
+    if (!phone || !messageText) {
+      return res.status(400).json({ success: false, error: 'Phone and messageText are required.' });
+    }
+    
+    let mediaBase64 = null;
+    if (req.file) {
+      const base64 = req.file.buffer.toString('base64');
+      mediaBase64 = `data:${req.file.mimetype};base64,${base64}`;
+    }
+    
+    const result = await whatsappService.sendMessage(phone, messageText, mediaBase64);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // POST /api/v1/whatsapp/send

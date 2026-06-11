@@ -13,6 +13,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
         console.log('✅ Connected to MongoDB for WhatsApp Session');
         
         const store = new MongoStore({ mongoose: mongoose });
+        let isReady = false;
 
         const client = new Client({
             authStrategy: new RemoteAuth({
@@ -37,14 +38,17 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
         });
 
         client.on('ready', () => {
+            isReady = true;
             console.log('\n✅ WhatsApp Client is READY and CONNECTED!\n');
         });
 
         client.on('auth_failure', msg => {
+            isReady = false;
             console.error('❌ Authentication failure:', msg);
         });
 
         client.on('disconnected', (reason) => {
+            isReady = false;
             console.log('❌ WhatsApp Client was disconnected:', reason);
         });
 
@@ -52,6 +56,9 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
 
         // This endpoint exactly matches what the GymOS server expects
         app.post('/send', async (req, res) => {
+            if (!isReady) {
+                return res.status(503).json({ success: false, error: 'WhatsApp client is waking up or needs QR scan. Try again in 30 seconds.' });
+            }
             const { phone, message, mediaBase64 } = req.body;
             try {
                 if (!phone || !message) {
