@@ -56,8 +56,8 @@ const createMember = async (req, res, next) => {
     const { forceReplace } = req.query;
 
     const existingMember = await Member.findOne({ phone });
-    if (existingMember && existingMember.status !== 'Deleted') {
-      if (forceReplace === 'true') {
+    if (existingMember) {
+      if (existingMember.status === 'Deleted' || forceReplace === 'true') {
         await Member.findByIdAndDelete(existingMember._id);
         await Attendance.deleteMany({ member: existingMember._id });
         await Payment.deleteMany({ member: existingMember._id });
