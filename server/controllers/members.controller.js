@@ -144,7 +144,20 @@ const createMember = async (req, res, next) => {
         }
         msg += `\n\n*Total Amount: ₹${totalInvoiceAmount}*\n\nLet's get those gains! 💪`;
         
-        await whatsappService.sendMessage(member.phone, msg);
+        const SystemSettings = require('../models/SystemSettings.model');
+        const settings = await SystemSettings.findOne();
+        
+        await whatsappService.sendMessage(member.phone, msg, settings?.welcomePoster);
+
+        const WhatsAppLog = require('../models/WhatsAppLog.model');
+        await WhatsAppLog.create({
+          member: member._id,
+          phone: member.phone,
+          messageType: 'welcome',
+          messageText: msg,
+          status: 'sent',
+          sentAt: new Date()
+        });
       } catch (err) {
         console.error('Failed to send WhatsApp welcome message:', err);
       }
