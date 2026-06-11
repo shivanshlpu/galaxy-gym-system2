@@ -69,8 +69,6 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
             console.log('❌ WhatsApp Client was disconnected:', reason);
         });
 
-        client.initialize();
-
         // This endpoint exactly matches what the GymOS server expects
         app.post('/send', async (req, res) => {
             if (!isReady) {
