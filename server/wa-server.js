@@ -89,6 +89,11 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
             }
         });
 
+        // Health check endpoint for UptimeRobot to keep server awake
+        app.get('/ping', (req, res) => {
+            res.status(200).send('pong');
+        });
+
     })
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
