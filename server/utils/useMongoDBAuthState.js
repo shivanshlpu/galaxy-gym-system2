@@ -3,17 +3,23 @@ const mongoose = require('mongoose');
 
 const authSchema = new mongoose.Schema({
     _id: String,
-    data: mongoose.Schema.Types.Mixed
-});
+    data: String // Changed to String to avoid Mongoose stripping keys with dots (.)
+}, { _id: false }); // Disable Mongoose auto _id to safely use string keys
 
 const AuthModel = mongoose.models.BaileysAuth || mongoose.model('BaileysAuth', authSchema);
 
 const useMongoDBAuthState = async () => {
+    // Wait for mongoose connection if not ready
+    if (mongoose.connection.readyState !== 1) {
+        await new Promise(resolve => mongoose.connection.once('open', resolve));
+    }
+    const collection = mongoose.connection.db.collection('baileysauths');
+
     const readData = async (key) => {
         try {
-            const doc = await AuthModel.findById(key);
+            const doc = await collection.findOne({ _id: key });
             if (doc && doc.data) {
-                return JSON.parse(JSON.stringify(doc.data), BufferJSON.reviver);
+                return JSON.parse(doc.data, BufferJSON.reviver);
             }
             return null;
         } catch (error) {
@@ -24,8 +30,12 @@ const useMongoDBAuthState = async () => {
 
     const writeData = async (data, key) => {
         try {
-            const dataStr = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
-            await AuthModel.findByIdAndUpdate(key, { data: dataStr }, { upsert: true });
+            const dataStr = JSON.stringify(data, BufferJSON.replacer);
+            await collection.updateOne(
+                { _id: key },
+                { $set: { data: dataStr } },
+                { upsert: true }
+            );
         } catch (error) {
             console.error('Error writing auth state to MongoDB', error);
         }
@@ -33,7 +43,7 @@ const useMongoDBAuthState = async () => {
 
     const removeData = async (key) => {
         try {
-            await AuthModel.findByIdAndDelete(key);
+            await collection.deleteOne({ _id: key });
         } catch (error) {
             console.error('Error deleting auth state from MongoDB', error);
         }
@@ -77,7 +87,7 @@ const useMongoDBAuthState = async () => {
         },
         saveCreds: () => writeData(creds, 'creds'),
         clearState: async () => {
-            await AuthModel.deleteMany({});
+            await collection.deleteMany({});
         }
     };
 };

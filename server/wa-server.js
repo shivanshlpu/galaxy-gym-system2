@@ -10,7 +10,18 @@ require('dotenv').config();
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log('✅ Connected to MongoDB for WhatsApp Session'))
+    .then(() => {
+        console.log('✅ Connected to MongoDB for WhatsApp Session');
+        mongoose.connection.db.collection('baileysauths').countDocuments({}).then(count => {
+            if (count > 0) {
+                console.log('\n🔍 Found existing session in MongoDB. Auto-initializing...');
+                connectToWhatsApp();
+            } else {
+                console.log('\n🔍 No existing session found. Waiting for Connect signal from frontend...');
+                isIdle = true;
+            }
+        });
+    })
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 const app = express();
@@ -171,17 +182,7 @@ app.get('/ping', (req, res) => {
     res.status(200).send('pong');
 });
 
-// Smart Startup Logic
-const AuthModel = mongoose.models.BaileysAuth || mongoose.model('BaileysAuth', new mongoose.Schema({}, { strict: false }));
-AuthModel.countDocuments({}).then(count => {
-    if (count > 0) {
-        console.log('\n🔍 Found existing session in MongoDB. Auto-initializing...');
-        connectToWhatsApp();
-    } else {
-        console.log('\n🔍 No existing session found. Waiting for Connect signal from frontend...');
-        isIdle = true;
-    }
-});
+// Smart Startup Logic has been moved to mongoose.connect.then()
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
