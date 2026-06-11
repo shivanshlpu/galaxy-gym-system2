@@ -132,8 +132,8 @@ router.post('/send-marketing', async (req, res) => {
   const MembershipPlan = require('../models/MembershipPlan.model');
   
   try {
-    const { memberIds, messageText, planId } = req.body;
-    let posterBase64 = null;
+    const { memberIds, messageText, planId, mediaBase64 } = req.body;
+    let posterBase64 = mediaBase64 || null;
     
     if (planId) {
       const plan = await MembershipPlan.findById(planId);

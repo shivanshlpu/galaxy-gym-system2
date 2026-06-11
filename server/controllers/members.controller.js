@@ -147,7 +147,12 @@ const createMember = async (req, res, next) => {
         const SystemSettings = require('../models/SystemSettings.model');
         const settings = await SystemSettings.findOne();
         
-        await whatsappService.sendMessage(member.phone, msg, settings?.welcomePoster);
+        let posterToSend = settings?.welcomePoster;
+        if (!posterToSend && membershipPlan && membershipPlan.posterImage) {
+          posterToSend = membershipPlan.posterImage;
+        }
+        
+        await whatsappService.sendMessage(member.phone, msg, posterToSend);
 
         const WhatsAppLog = require('../models/WhatsAppLog.model');
         await WhatsAppLog.create({
