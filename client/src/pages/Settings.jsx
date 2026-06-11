@@ -205,9 +205,19 @@ const RemindersSection = () => {
 };
 
 const WhatsAppSection = () => {
+  const queryClient = useQueryClient();
   const { data: status } = useQuery({
     queryKey: ['whatsappStatus'],
     queryFn: async () => { const { data } = await api.get('/whatsapp/status'); return data.data; },
+    refetchInterval: (query) => (query?.state?.data?.connected ? 30000 : 3000), // poll every 3s if disconnected
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async () => await api.post('/whatsapp/disconnect'),
+    onSuccess: () => {
+      toast.success('Disconnected! Waiting for new QR...');
+      queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });
+    }
   });
 
   const [testForm, setTestForm] = useState({ phone: '', messageText: '', template: 'Custom' });
@@ -249,7 +259,16 @@ const WhatsAppSection = () => {
   return (
     <div className="space-y-6">
       <div className="iron-card p-6">
-        <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">WhatsApp Integration</h2>
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+          <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider">WhatsApp Integration</h2>
+          {status?.connected && (
+            <button onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending} className="px-3 py-1 bg-danger/10 border border-danger text-danger hover:bg-danger hover:text-white transition-colors text-[10px] font-bold font-body uppercase tracking-widest rounded flex items-center gap-2">
+              {disconnectMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <WifiOff className="w-3 h-3" />}
+              DISCONNECT
+            </button>
+          )}
+        </div>
+        
         <div className="flex items-center gap-3 mb-5">
           {status?.connected ? (
             <><Wifi className="w-5 h-5 text-accent-primary" strokeWidth={2} /><span className="text-accent-primary font-mono font-bold text-sm tracking-widest uppercase">Connected</span></>
@@ -258,11 +277,27 @@ const WhatsAppSection = () => {
           )}
         </div>
         <p className="text-[10px] font-body uppercase tracking-tag text-text-secondary mb-5">
-          {status?.enabled ? 'WhatsApp service is enabled.' : 'WhatsApp service is disabled. Set WHATSAPP_ENABLED=true in .env to enable.'}
+          {status?.connected ? 'WhatsApp service is active and connected to your device.' : 'WhatsApp service requires authentication. Please scan the QR code below.'}
         </p>
-        <div className="bg-bg-raised border border-border border-l-4 border-l-warning p-4">
-          <p className="text-xs font-body text-text-secondary">To connect WhatsApp, ensure the OpenWA service is running and scan the QR code from the service dashboard.</p>
-        </div>
+
+        {!status?.connected && (
+          <div className="bg-bg-raised border border-border flex flex-col items-center justify-center p-6 mb-6 rounded">
+            {status?.qr ? (
+              <div className="flex flex-col items-center">
+                <p className="text-xs font-bold text-white mb-4 uppercase tracking-wider">Scan to Connect</p>
+                <div className="bg-white p-2 rounded">
+                  <img src={status.qr} alt="WhatsApp QR Code" className="w-48 h-48" />
+                </div>
+                <p className="text-[10px] text-text-muted mt-4">Open WhatsApp on your phone &gt; Linked Devices &gt; Link a Device</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-text-muted py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span className="text-xs font-mono uppercase tracking-widest">Generating QR Code...</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="iron-card p-6">

@@ -7,16 +7,41 @@ router.use(verifyToken);
 const upload = require('../middleware/upload.middleware');
 
 // GET /api/v1/whatsapp/status
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   const enabled = process.env.WHATSAPP_ENABLED === 'true';
+  if (!enabled) {
+    return res.json({
+      success: true,
+      data: { enabled: false, connected: false, message: 'WhatsApp service is disabled', qr: null },
+    });
+  }
+
+  const whatsappService = require('../services/whatsapp.service');
+  const waStatus = await whatsappService.getStatus();
+  
   res.json({
     success: true,
     data: {
-      enabled,
-      connected: enabled,
-      message: enabled ? 'WhatsApp service is active and connected.' : 'WhatsApp service is disabled',
+      enabled: true,
+      connected: waStatus.data?.isReady || false,
+      message: waStatus.data?.isReady ? 'WhatsApp service is active and connected.' : 'WhatsApp is waking up or needs QR scan.',
+      qr: waStatus.data?.qr || null,
     },
   });
+});
+
+// POST /api/v1/whatsapp/disconnect
+router.post('/disconnect', async (req, res) => {
+  if (process.env.WHATSAPP_ENABLED !== 'true') {
+    return res.json({ success: false, error: 'WhatsApp service is disabled.' });
+  }
+  const whatsappService = require('../services/whatsapp.service');
+  try {
+    const result = await whatsappService.disconnect();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // POST /api/v1/whatsapp/test

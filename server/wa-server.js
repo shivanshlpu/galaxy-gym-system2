@@ -2,6 +2,7 @@ const { Client, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
 const { MongoStore } = require('wwebjs-mongo');
 const mongoose = require('mongoose');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const express = require('express');
 require('dotenv').config();
 
@@ -15,6 +16,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
         const store = new MongoStore({ mongoose: mongoose });
         let isReady = false;
 
+        let currentQrBase64 = null;
+
         const client = new Client({
             authStrategy: new RemoteAuth({
                 store: store,
@@ -26,11 +29,17 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
             }
         });
 
-        client.on('qr', (qr) => {
+        client.on('qr', async (qr) => {
             console.log('\n======================================================');
             console.log('📱 SCAN THIS QR CODE WITH YOUR WHATSAPP LINKED DEVICES:');
             console.log('======================================================\n');
             qrcode.generate(qr, { small: true });
+            try {
+                currentQrBase64 = await QRCode.toDataURL(qr);
+                console.log('✅ QR Code generated for frontend.');
+            } catch (err) {
+                console.error('Failed to generate base64 QR', err);
+            }
         });
 
         client.on('remote_session_saved', () => {
@@ -39,16 +48,19 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
 
         client.on('ready', () => {
             isReady = true;
+            currentQrBase64 = null;
             console.log('\n✅ WhatsApp Client is READY and CONNECTED!\n');
         });
 
         client.on('auth_failure', msg => {
             isReady = false;
+            currentQrBase64 = null;
             console.error('❌ Authentication failure:', msg);
         });
 
         client.on('disconnected', (reason) => {
             isReady = false;
+            currentQrBase64 = null;
             console.log('❌ WhatsApp Client was disconnected:', reason);
         });
 
@@ -86,6 +98,36 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
             } catch (error) {
                 console.error('❌ Failed to send message:', error.message);
                 res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        // Get Current Status
+        app.get('/status', (req, res) => {
+            res.json({
+                success: true,
+                data: {
+                    isReady,
+                    qr: currentQrBase64
+                }
+            });
+        });
+
+        // Disconnect and Force New QR
+        app.post('/disconnect', async (req, res) => {
+            try {
+                isReady = false;
+                currentQrBase64 = null;
+                await client.logout();
+                client.initialize();
+                res.json({ success: true, message: 'Disconnected' });
+            } catch (error) {
+                try {
+                    await client.destroy();
+                    client.initialize();
+                    res.json({ success: true, message: 'Destroyed and re-initializing' });
+                } catch(e) {
+                    res.status(500).json({ success: false, error: e.message });
+                }
             }
         });
 

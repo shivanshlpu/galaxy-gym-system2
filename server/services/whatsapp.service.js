@@ -17,6 +17,24 @@ const sendMessage = async (phone, message, mediaBase64 = null) => {
   }
 };
 
+const getStatus = async () => {
+  try {
+    const response = await axios.get(`${OPENWA_URL}/status`);
+    return response.data;
+  } catch (error) {
+    return { success: false, data: { isReady: false, qr: null } };
+  }
+};
+
+const disconnect = async () => {
+  try {
+    const response = await axios.post(`${OPENWA_URL}/disconnect`);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to disconnect: ${error.message}`);
+  }
+};
+
 const sendReminder = async (member, daysLeft) => {
   const SystemSettings = require('../models/SystemSettings.model');
   const settings = await SystemSettings.findOne();
@@ -129,4 +147,4 @@ const sendByType = async (memberId, type) => {
   }
 };
 
-module.exports = { sendMessage, sendReminder, sendWelcome, sendExpired, sendRenewal, sendInactive, sendByType, sendMarketingBulk };
+module.exports = { sendMessage, sendReminder, sendWelcome, sendExpired, sendRenewal, sendInactive, sendByType, sendMarketingBulk, getStatus, disconnect };
