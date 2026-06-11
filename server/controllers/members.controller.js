@@ -53,6 +53,29 @@ const getMembers = async (req, res, next) => {
 const createMember = async (req, res, next) => {
   try {
     const { fullName, phone, email, address, gender, age, joiningDate, membershipPlan, membershipStartDate, paymentStatus, paymentMethod, notes, whatsappOptIn, trainerNeeded, trainer } = req.body;
+    const { forceReplace } = req.query;
+
+    const existingMember = await Member.findOne({ phone });
+    if (existingMember && existingMember.status !== 'Deleted') {
+      if (forceReplace === 'true') {
+        await Member.findByIdAndDelete(existingMember._id);
+        await Attendance.deleteMany({ member: existingMember._id });
+        await Payment.deleteMany({ member: existingMember._id });
+        const WhatsAppLog = require('../models/WhatsAppLog.model');
+        await WhatsAppLog.deleteMany({ member: existingMember._id });
+      } else {
+        return res.status(409).json({
+          success: false,
+          code: 'DUPLICATE_PHONE',
+          error: 'This phone number is already registered.',
+          existingMember: {
+            _id: existingMember._id,
+            fullName: existingMember.fullName,
+            phone: existingMember.phone
+          }
+        });
+      }
+    }
 
     // Calculate expiry date from plan
     let expiryDate = null;

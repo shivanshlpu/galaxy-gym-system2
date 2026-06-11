@@ -52,7 +52,10 @@ const Members = () => {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (formData) => editingMember ? api.put(`/members/${editingMember._id}`, formData) : api.post('/members', formData),
+    mutationFn: (formData) => {
+      const url = editingMember ? `/members/${editingMember._id}` : (formData.forceReplace ? `/members?forceReplace=true` : `/members`);
+      return editingMember ? api.put(url, formData) : api.post(url, formData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
       queryClient.invalidateQueries({ queryKey: ['memberStats'] });
@@ -60,8 +63,15 @@ const Members = () => {
       setShowForm(false);
       setEditingMember(null);
     },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to save member');
+    onError: (error, variables) => {
+      if (error.response?.data?.code === 'DUPLICATE_PHONE') {
+        const existing = error.response.data.existingMember;
+        if (window.confirm(`This phone number is already registered to ${existing.fullName}.\n\nDo you want to delete the old record and replace it with this new one?`)) {
+          saveMutation.mutate({ ...variables, forceReplace: true });
+        }
+      } else {
+        toast.error(error.response?.data?.error || 'Failed to save member');
+      }
     },
   });
 
