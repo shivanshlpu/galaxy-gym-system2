@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 const useAppStore = create((set) => ({
-  sidebarCollapsed: false,
+  sidebarCollapsed: true,
   globalSearch: '',
   
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
