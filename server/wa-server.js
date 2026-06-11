@@ -4,19 +4,28 @@ const express = require('express');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const fs = require('fs');
+const mongoose = require('mongoose');
+const useMongoDBAuthState = require('./utils/useMongoDBAuthState');
 require('dotenv').config();
 
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('✅ Connected to MongoDB for WhatsApp Session'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
 const app = express();
-app.use(express.json({ limit: '50mb' })); // Increased back to 50mb to prevent rejection of 5MB HD images
+app.use(express.json({ limit: '50mb' }));
 
 let isReady = false;
-let isIdle = true; // Tracks if we are waiting for user to click connect
+let isIdle = true;
 let currentQrBase64 = null;
 let sock = null;
+let clearStateFn = null;
 
 async function connectToWhatsApp() {
     isIdle = false;
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
+    const { state, saveCreds, clearState } = await useMongoDBAuthState();
+    clearStateFn = clearState;
 
     sock = makeWASocket({
         auth: state,
@@ -54,9 +63,8 @@ async function connectToWhatsApp() {
             } else {
                 console.log('👋 Logged out from WhatsApp.');
                 isIdle = true;
-                // Delete auth info if logged out
-                if (fs.existsSync('baileys_auth_info')) {
-                    fs.rmSync('baileys_auth_info', { recursive: true, force: true });
+                if (clearStateFn) {
+                    await clearStateFn();
                 }
             }
         } else if (connection === 'open') {
@@ -149,8 +157,8 @@ app.post('/disconnect', async (req, res) => {
             sock = null;
         }
         isIdle = true;
-        if (fs.existsSync('baileys_auth_info')) {
-            fs.rmSync('baileys_auth_info', { recursive: true, force: true });
+        if (clearStateFn) {
+            await clearStateFn();
         }
         res.json({ success: true, message: 'Disconnected' });
     } catch (error) {
@@ -164,15 +172,18 @@ app.get('/ping', (req, res) => {
 });
 
 // Smart Startup Logic
-if (fs.existsSync('./baileys_auth_info')) {
-    console.log('\n🔍 Found existing local session on disk. Auto-initializing...');
-    connectToWhatsApp();
-} else {
-    console.log('\n🔍 No existing session found. Waiting for Connect signal from frontend...');
-    isIdle = true;
-}
+const AuthModel = mongoose.models.BaileysAuth || mongoose.model('BaileysAuth', new mongoose.Schema({}, { strict: false }));
+AuthModel.countDocuments({}).then(count => {
+    if (count > 0) {
+        console.log('\n🔍 Found existing session in MongoDB. Auto-initializing...');
+        connectToWhatsApp();
+    } else {
+        console.log('\n🔍 No existing session found. Waiting for Connect signal from frontend...');
+        isIdle = true;
+    }
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    console.log(`\n🚀 Standalone WhatsApp Microservice running on port ${PORT} (Powered by Baileys)`);
+    console.log(`\n🚀 Standalone WhatsApp Microservice running on port ${PORT} (Powered by Baileys + MongoDB)`);
 });
