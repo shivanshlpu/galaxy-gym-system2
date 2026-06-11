@@ -1,34 +1,33 @@
-const { Client, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
-const { MongoStore } = require('wwebjs-mongo');
-const mongoose = require('mongoose');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const express = require('express');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' })); // Reduced limit to save memory
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
-    .then(() => {
-        console.log('✅ Connected to MongoDB for WhatsApp Session');
-        
-        const store = new MongoStore({ mongoose: mongoose });
-        let isReady = false;
-        let isIdle = true; // Tracks if we are waiting for user to click connect
+let isReady = false;
+let isIdle = true; // Tracks if we are waiting for user to click connect
+let currentQrBase64 = null;
 
-        let currentQrBase64 = null;
-
-        const client = new Client({
-            authStrategy: new RemoteAuth({
-                store: store,
-                backupSyncIntervalMs: 300000 // Saves session every 5 mins
-            }),
-            puppeteer: {
-                headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
-            }
-        });
+const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        headless: true,
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage', 
+            '--disable-accelerated-2d-canvas', 
+            '--no-first-run', 
+            '--no-zygote', 
+            '--disable-gpu'
+            // Removed --single-process as it can cause OOM in some Chrome versions
+        ]
+    }
+});
 
         client.on('qr', async (qr) => {
             console.log('\n======================================================');
@@ -42,10 +41,6 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
             } catch (err) {
                 console.error('Failed to generate base64 QR', err);
             }
-        });
-
-        client.on('remote_session_saved', () => {
-            console.log('💾 WhatsApp Session successfully saved to MongoDB!');
         });
 
         client.on('ready', () => {
@@ -149,25 +144,21 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
             }
         });
 
-        // Health check endpoint for UptimeRobot to keep server awake
-        app.get('/ping', (req, res) => {
-            res.status(200).send('pong');
-        });
+// Health check endpoint for UptimeRobot to keep server awake
+app.get('/ping', (req, res) => {
+    res.status(200).send('pong');
+});
 
-        // Smart Startup Logic
-        store.sessionExists({ session: 'RemoteAuth' }).then((exists) => {
-            if (exists) {
-                console.log('\n🔍 Found existing session in MongoDB. Auto-initializing...');
-                isIdle = false;
-                client.initialize();
-            } else {
-                console.log('\n🔍 No existing session found. Waiting for Connect signal...');
-                isIdle = true;
-            }
-        });
-
-    })
-    .catch(err => console.error('❌ MongoDB Connection Error:', err));
+// Smart Startup Logic
+// LocalAuth creates a directory named .wwebjs_auth
+if (fs.existsSync('./.wwebjs_auth')) {
+    console.log('\n🔍 Found existing local session on disk. Auto-initializing...');
+    isIdle = false;
+    client.initialize();
+} else {
+    console.log('\n🔍 No existing session found. Waiting for Connect signal from frontend...');
+    isIdle = true;
+}
 
 
 
