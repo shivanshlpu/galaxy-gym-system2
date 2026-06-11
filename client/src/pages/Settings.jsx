@@ -212,6 +212,13 @@ const WhatsAppSection = () => {
     refetchInterval: (query) => (query?.state?.data?.connected ? 30000 : 3000), // poll every 3s if disconnected
   });
 
+  const connectMutation = useMutation({
+    mutationFn: async () => await api.post('/whatsapp/connect'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });
+    }
+  });
+
   const disconnectMutation = useMutation({
     mutationFn: async () => await api.post('/whatsapp/disconnect'),
     onSuccess: () => {
@@ -277,12 +284,25 @@ const WhatsAppSection = () => {
           )}
         </div>
         <p className="text-[10px] font-body uppercase tracking-tag text-text-secondary mb-5">
-          {status?.connected ? 'WhatsApp service is active and connected to your device.' : 'WhatsApp service requires authentication. Please scan the QR code below.'}
+          {status?.connected ? 'WhatsApp service is active and connected to your device.' : (status?.isIdle ? 'WhatsApp service is idle. Click connect to generate a QR code.' : 'WhatsApp service requires authentication. Please scan the QR code below.')}
         </p>
 
         {!status?.connected && (
           <div className="bg-bg-raised border border-border flex flex-col items-center justify-center p-6 mb-6 rounded">
-            {status?.qr ? (
+            {status?.isIdle ? (
+              <div className="flex flex-col items-center gap-4 py-8">
+                <WifiOff className="w-8 h-8 text-text-muted mb-2" />
+                <p className="text-xs text-text-secondary font-mono tracking-widest uppercase">Service is Idle</p>
+                <button 
+                  onClick={() => connectMutation.mutate()} 
+                  disabled={connectMutation.isPending}
+                  className="btn-primary mt-2 flex items-center gap-2"
+                >
+                  {connectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+                  {connectMutation.isPending ? 'CONNECTING...' : 'CONNECT WHATSAPP'}
+                </button>
+              </div>
+            ) : status?.qr ? (
               <div className="flex flex-col items-center">
                 <p className="text-xs font-bold text-white mb-4 uppercase tracking-wider">Scan to Connect</p>
                 <div className="bg-white p-2 rounded">

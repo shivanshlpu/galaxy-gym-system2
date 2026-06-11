@@ -15,6 +15,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
         
         const store = new MongoStore({ mongoose: mongoose });
         let isReady = false;
+        let isIdle = true; // Tracks if we are waiting for user to click connect
 
         let currentQrBase64 = null;
 
@@ -36,6 +37,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
             qrcode.generate(qr, { small: true });
             try {
                 currentQrBase64 = await QRCode.toDataURL(qr);
+                isIdle = false;
                 console.log('✅ QR Code generated for frontend.');
             } catch (err) {
                 console.error('Failed to generate base64 QR', err);
@@ -48,18 +50,21 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
 
         client.on('ready', () => {
             isReady = true;
+            isIdle = false;
             currentQrBase64 = null;
             console.log('\n✅ WhatsApp Client is READY and CONNECTED!\n');
         });
 
         client.on('auth_failure', msg => {
             isReady = false;
+            isIdle = true;
             currentQrBase64 = null;
             console.error('❌ Authentication failure:', msg);
         });
 
         client.on('disconnected', (reason) => {
             isReady = false;
+            isIdle = true;
             currentQrBase64 = null;
             console.log('❌ WhatsApp Client was disconnected:', reason);
         });
@@ -107,9 +112,24 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
                 success: true,
                 data: {
                     isReady,
+                    isIdle,
                     qr: currentQrBase64
                 }
             });
+        });
+
+        // Manual Connect 
+        app.post('/connect', async (req, res) => {
+            if (!isIdle && !isReady && currentQrBase64) {
+                return res.json({ success: true, message: 'Already connecting' });
+            }
+            try {
+                isIdle = false;
+                client.initialize();
+                res.json({ success: true, message: 'Initialization started' });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
         });
 
         // Disconnect and Force New QR
@@ -118,13 +138,13 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
                 isReady = false;
                 currentQrBase64 = null;
                 await client.logout();
-                client.initialize();
+                isIdle = true;
                 res.json({ success: true, message: 'Disconnected' });
             } catch (error) {
                 try {
                     await client.destroy();
-                    client.initialize();
-                    res.json({ success: true, message: 'Destroyed and re-initializing' });
+                    isIdle = true;
+                    res.json({ success: true, message: 'Destroyed' });
                 } catch(e) {
                     res.status(500).json({ success: false, error: e.message });
                 }
@@ -134,6 +154,18 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/gymos')
         // Health check endpoint for UptimeRobot to keep server awake
         app.get('/ping', (req, res) => {
             res.status(200).send('pong');
+        });
+
+        // Smart Startup Logic
+        store.sessionExists({ session: 'RemoteAuth' }).then((exists) => {
+            if (exists) {
+                console.log('\n🔍 Found existing session in MongoDB. Auto-initializing...');
+                isIdle = false;
+                client.initialize();
+            } else {
+                console.log('\n🔍 No existing session found. Waiting for Connect signal...');
+                isIdle = true;
+            }
         });
 
     })

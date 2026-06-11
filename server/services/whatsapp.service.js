@@ -35,6 +35,15 @@ const disconnect = async () => {
   }
 };
 
+const connect = async () => {
+  try {
+    const response = await axios.post(`${OPENWA_URL}/connect`);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to connect: ${error.message}`);
+  }
+};
+
 const sendReminder = async (member, daysLeft) => {
   const SystemSettings = require('../models/SystemSettings.model');
   const settings = await SystemSettings.findOne();
@@ -147,4 +156,4 @@ const sendByType = async (memberId, type) => {
   }
 };
 
-module.exports = { sendMessage, sendReminder, sendWelcome, sendExpired, sendRenewal, sendInactive, sendByType, sendMarketingBulk, getStatus, disconnect };
+module.exports = { sendMessage, sendReminder, sendWelcome, sendExpired, sendRenewal, sendInactive, sendByType, sendMarketingBulk, getStatus, disconnect, connect };
