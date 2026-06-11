@@ -221,6 +221,11 @@ const updateMember = async (req, res, next) => {
   try {
     const { membershipPlan, membershipStartDate, ...rest } = req.body;
 
+    // If the user manually changes the status to 'Deleted' from the edit form, perform a hard delete.
+    if (rest.status === 'Deleted') {
+      return deleteMember(req, res, next);
+    }
+
     const updateData = { ...rest };
 
     // Recalculate expiry if plan or start date changes
