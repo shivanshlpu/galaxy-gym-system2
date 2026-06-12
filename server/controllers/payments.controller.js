@@ -26,7 +26,8 @@ const getPayments = async (req, res, next) => {
       .populate('plan', 'name durationDays price')
       .sort({ paymentDate: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,
@@ -145,7 +146,8 @@ const getMemberPayments = async (req, res, next) => {
   try {
     const payments = await Payment.find({ member: req.params.id })
       .populate('plan', 'name price')
-      .sort({ paymentDate: -1 });
+      .sort({ paymentDate: -1 })
+      .lean();
 
     res.json({ success: true, data: payments });
   } catch (error) {

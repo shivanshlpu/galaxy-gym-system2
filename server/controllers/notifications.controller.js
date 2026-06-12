@@ -16,7 +16,8 @@ const getNotifications = async (req, res, next) => {
       .populate('member', 'fullName memberId phone photo')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,

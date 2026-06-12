@@ -6,6 +6,7 @@ const ActivityLog = require('../models/ActivityLog.model');
 const Trainer = require('../models/Trainer.model');
 const whatsappService = require('../services/whatsapp.service');
 const { addDays, getStartOfDay, getEndOfDay, getDaysRemaining } = require('../utils/dateUtils');
+const cloudinary = require('../utils/cloudinary');
 
 // GET /api/v1/members
 const getMembers = async (req, res, next) => {
@@ -29,10 +30,12 @@ const getMembers = async (req, res, next) => {
     const total = await Member.countDocuments(query);
 
     const members = await Member.find(query)
+      .select('-photo -notes')
       .populate('membershipPlan', 'name durationDays price')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,
@@ -309,15 +312,27 @@ const uploadPhoto = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'No file uploaded.', code: 'NO_FILE' });
     }
 
-    // For now, store as base64 data URL (Cloudinary integration would go here)
-    const base64 = req.file.buffer.toString('base64');
-    const dataUrl = `data:${req.file.mimetype};base64,${base64}`;
+    // Upload to Cloudinary using a stream
+    const uploadToCloudinary = (buffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'gymos_members' },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(buffer);
+      });
+    };
+
+    const result = await uploadToCloudinary(req.file.buffer);
 
     const member = await Member.findByIdAndUpdate(
       req.params.id,
-      { photo: dataUrl },
+      { photo: result.secure_url },
       { new: true }
-    );
+    ).select('-photo'); // we don't need to return the photo string necessarily, wait actually the UI expects it in the response: res.json({data: {photo: member.photo}}). So let's not exclude it from findByIdAndUpdate result.
 
     if (!member) {
       return res.status(404).json({ success: false, error: 'Member not found.', code: 'NOT_FOUND' });
@@ -432,8 +447,10 @@ const getExpiringMembers = async (req, res, next) => {
       status: 'Active',
       membershipExpiryDate: { $gte: today, $lte: sevenDaysLater },
     })
+      .select('-photo -notes')
       .populate('membershipPlan', 'name')
-      .sort({ membershipExpiryDate: 1 });
+      .sort({ membershipExpiryDate: 1 })
+      .lean();
 
     res.json({ success: true, data: members });
   } catch (error) {
@@ -453,8 +470,10 @@ const getInactiveMembers = async (req, res, next) => {
       status: 'Active',
       $or: [{ lastAttendance: { $lt: cutoff } }, { lastAttendance: null }],
     })
+      .select('-photo -notes')
       .populate('membershipPlan', 'name')
-      .sort({ lastAttendance: 1 });
+      .sort({ lastAttendance: 1 })
+      .lean();
 
     res.json({ success: true, data: members });
   } catch (error) {

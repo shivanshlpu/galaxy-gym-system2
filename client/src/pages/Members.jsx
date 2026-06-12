@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInView } from 'react-intersection-observer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Eye, Edit, Trash2, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
@@ -11,7 +12,6 @@ const Members = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,16 +25,37 @@ const Members = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['members', search, statusFilter, page],
-    queryFn: async () => {
-      const params = new URLSearchParams({ page, limit: 20 });
+  const { ref, inView } = useInView();
+
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteQuery({
+    queryKey: ['members', search, statusFilter],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({ page: pageParam, limit: 20 });
       if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
       const { data } = await api.get(`/members?${params}`);
       return data;
     },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.pagination.page < lastPage.pagination.pages) {
+        return lastPage.pagination.page + 1;
+      }
+      return undefined;
+    },
   });
+
+  useEffect(() => {
+    if (inView && hasNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, fetchNextPage, hasNextPage]);
 
   const { data: plans } = useQuery({
     queryKey: ['plans'],
@@ -99,10 +120,10 @@ const Members = () => {
         <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
           <div className="flex items-center bg-bg-card border border-border rounded px-3 py-2 gap-2 w-full sm:w-72 focus-within:border-accent-primary focus-within:ring-1 focus-within:ring-accent-primary/20 transition-all">
             <Search className="w-4 h-4 text-text-muted" strokeWidth={2} />
-            <input type="text" placeholder="Search by name or phone..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            <input type="text" placeholder="Search by name or phone..." value={search} onChange={(e) => setSearch(e.target.value)}
               className="bg-transparent border-none outline-none text-sm text-white placeholder-text-muted w-full font-body" />
           </div>
-          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
             className="input-field w-full sm:w-auto py-2 h-[38px] min-h-0 text-sm">
             <option value="">All Status</option>
             <option value="Active">Active</option>
@@ -131,62 +152,66 @@ const Members = () => {
           <tbody className="flex flex-col lg:table-row-group">
             {isLoading ? (
               <tr className="flex lg:table-row"><td colSpan={7} className="w-full text-center py-12 text-text-muted"><Loader2 className="w-6 h-6 animate-spin mx-auto" strokeWidth={2} /></td></tr>
-            ) : data?.data?.length === 0 ? (
+            ) : data?.pages[0]?.data?.length === 0 ? (
               <tr className="flex lg:table-row"><td colSpan={7} className="w-full text-center py-12 text-text-muted text-sm font-body uppercase tracking-widest">No members found</td></tr>
-            ) : data?.data?.map((member) => {
-              const isExpired = member.status === 'Expired';
-              return (
-                <tr key={member._id} className={`border-b border-border flex flex-col lg:table-row p-4 lg:p-0 gap-3 lg:gap-0 table-row-hover ${isExpired ? 'opacity-50' : ''}`}>
-                  <td className="px-2 lg:px-6 lg:py-4 flex justify-between items-start lg:table-cell">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 lg:w-8 lg:h-8 rounded bg-bg-raised border border-border flex items-center justify-center font-mono font-bold text-sm lg:text-xs text-text-primary flex-shrink-0">
-                        {member.fullName?.[0]}
-                      </div>
-                      <div>
-                        <p className={`text-base lg:text-sm font-semibold font-body text-white ${isExpired ? 'line-through text-text-muted' : ''}`}>{member.fullName}</p>
-                        <p className="text-xs font-mono text-text-secondary mt-0.5">{member.memberId} <span className="lg:hidden"> • {member.phone}</span></p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.phone}</td>
-                  <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.membershipPlan?.name || '—'}</td>
-                  <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.membershipExpiryDate ? format(new Date(member.membershipExpiryDate), 'dd MMM yyyy') : '—'}</td>
-                  
-                  <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
-                    <div className="flex items-center justify-between lg:justify-start w-full bg-bg-surface lg:bg-transparent p-3 lg:p-0 rounded border border-border lg:border-none">
-                      <span className="lg:hidden text-[10px] font-bold text-text-muted uppercase tracking-wider">Days Left</span>
-                      {getDaysLeftBadge(member.membershipExpiryDate)}
-                    </div>
-                  </td>
-                  <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
-                    <div className="flex items-center justify-between lg:justify-start w-full bg-bg-surface lg:bg-transparent p-3 lg:p-0 rounded border border-border lg:border-none">
-                      <span className="lg:hidden text-[10px] font-bold text-text-muted uppercase tracking-wider">Status</span>
-                      {statusBadge(member.status)}
-                    </div>
-                  </td>
-                  <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
-                    <div className="flex items-center justify-end gap-3 lg:gap-2 mt-2 lg:mt-0 pt-3 lg:pt-0 border-t border-border lg:border-t-0">
-                      <button onClick={() => navigate(`/members/${member._id}`)} className="text-text-muted hover:text-white p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Eye className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
-                      <button onClick={() => handleEdit(member)} className="text-text-muted hover:text-white p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Edit className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
-                      <button onClick={() => handleDelete(member._id)} className="text-text-muted hover:text-danger p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Trash2 className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            ) : data?.pages.map((page, i) => (
+              <React.Fragment key={i}>
+                {page.data?.map((member) => {
+                  const isExpired = member.status === 'Expired';
+                  return (
+                    <tr key={member._id} className={`border-b border-border flex flex-col lg:table-row p-4 lg:p-0 gap-3 lg:gap-0 table-row-hover ${isExpired ? 'opacity-50' : ''}`}>
+                      <td className="px-2 lg:px-6 lg:py-4 flex justify-between items-start lg:table-cell">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 lg:w-8 lg:h-8 rounded bg-bg-raised border border-border flex items-center justify-center font-mono font-bold text-sm lg:text-xs text-text-primary flex-shrink-0">
+                            {member.fullName?.[0]}
+                          </div>
+                          <div>
+                            <p className={`text-base lg:text-sm font-semibold font-body text-white ${isExpired ? 'line-through text-text-muted' : ''}`}>{member.fullName}</p>
+                            <p className="text-xs font-mono text-text-secondary mt-0.5">{member.memberId} <span className="lg:hidden"> • {member.phone}</span></p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.phone}</td>
+                      <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.membershipPlan?.name || '—'}</td>
+                      <td className={`px-6 py-4 text-sm font-body text-text-secondary hidden lg:table-cell ${isExpired ? 'line-through' : ''}`}>{member.membershipExpiryDate ? format(new Date(member.membershipExpiryDate), 'dd MMM yyyy') : '—'}</td>
+                      
+                      <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
+                        <div className="flex items-center justify-between lg:justify-start w-full bg-bg-surface lg:bg-transparent p-3 lg:p-0 rounded border border-border lg:border-none">
+                          <span className="lg:hidden text-[10px] font-bold text-text-muted uppercase tracking-wider">Days Left</span>
+                          {getDaysLeftBadge(member.membershipExpiryDate)}
+                        </div>
+                      </td>
+                      <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
+                        <div className="flex items-center justify-between lg:justify-start w-full bg-bg-surface lg:bg-transparent p-3 lg:p-0 rounded border border-border lg:border-none">
+                          <span className="lg:hidden text-[10px] font-bold text-text-muted uppercase tracking-wider">Status</span>
+                          {statusBadge(member.status)}
+                        </div>
+                      </td>
+                      <td className="px-2 lg:px-6 lg:py-4 block lg:table-cell w-full">
+                        <div className="flex items-center justify-end gap-3 lg:gap-2 mt-2 lg:mt-0 pt-3 lg:pt-0 border-t border-border lg:border-t-0">
+                          <button onClick={() => navigate(`/members/${member._id}`)} className="text-text-muted hover:text-white p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Eye className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
+                          <button onClick={() => handleEdit(member)} className="text-text-muted hover:text-white p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Edit className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
+                          <button onClick={() => handleDelete(member._id)} className="text-text-muted hover:text-danger p-2 lg:p-1 transition-colors bg-bg-raised lg:bg-transparent rounded"><Trash2 className="w-5 h-5 lg:w-4 lg:h-4" strokeWidth={2} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
           </tbody>
         </table>
 
-        {/* Pagination */}
-        {data?.pagination?.pages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-surface">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Page {data.pagination.page} of {data.pagination.pages} <span className="mx-1">•</span> {data.pagination.total} members</p>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setPage(page - 1)} disabled={page <= 1} className="p-1.5 text-text-muted hover:text-white disabled:opacity-30 border border-border rounded hover:bg-bg-raised"><ChevronLeft className="w-4 h-4" /></button>
-              <button onClick={() => setPage(page + 1)} disabled={page >= data.pagination.pages} className="p-1.5 text-text-muted hover:text-white disabled:opacity-30 border border-border rounded hover:bg-bg-raised"><ChevronRight className="w-4 h-4" /></button>
-            </div>
-          </div>
-        )}
+        {/* Infinite Scroll Loader */}
+        <div ref={ref} className="py-4 flex justify-center items-center text-text-muted">
+          {isFetchingNextPage ? (
+            <Loader2 className="w-5 h-5 animate-spin" strokeWidth={2} />
+          ) : hasNextPage ? (
+            <span className="text-xs uppercase tracking-widest font-body font-bold">Scroll for more</span>
+          ) : (data?.pages && data.pages[0]?.data?.length > 0) ? (
+            <span className="text-xs uppercase tracking-widest font-body font-bold opacity-50">End of list</span>
+          ) : null}
+        </div>
       </div>
 
       {/* Add/Edit Slide-over */}

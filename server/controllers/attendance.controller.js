@@ -23,7 +23,8 @@ const getAttendance = async (req, res, next) => {
       .populate('markedBy', 'username')
       .sort({ date: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,
@@ -188,7 +189,7 @@ const getMemberAttendance = async (req, res, next) => {
       };
     }
 
-    const records = await Attendance.find(query).sort({ date: -1 });
+    const records = await Attendance.find(query).sort({ date: -1 }).lean();
     res.json({ success: true, data: records });
   } catch (error) {
     next(error);

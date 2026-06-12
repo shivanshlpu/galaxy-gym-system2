@@ -4,7 +4,7 @@ const ActivityLog = require('../models/ActivityLog.model');
 // GET /api/v1/plans
 const getPlans = async (req, res, next) => {
   try {
-    const plans = await MembershipPlan.find({ isActive: true }).sort({ price: 1 });
+    const plans = await MembershipPlan.find({ isActive: true }).sort({ price: 1 }).lean();
     res.json({ success: true, data: plans });
   } catch (error) {
     next(error);

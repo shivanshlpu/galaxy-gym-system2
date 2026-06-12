@@ -5,7 +5,7 @@ const Trainer = require('../models/Trainer.model');
 // @access  Private
 exports.getTrainers = async (req, res, next) => {
   try {
-    const trainers = await Trainer.find({ isActive: true }).sort({ name: 1 });
+    const trainers = await Trainer.find({ isActive: true }).sort({ name: 1 }).lean();
     res.json({ success: true, count: trainers.length, data: trainers });
   } catch (error) {
     next(error);
@@ -17,7 +17,7 @@ exports.getTrainers = async (req, res, next) => {
 // @access  Private/Admin
 exports.getAllTrainers = async (req, res, next) => {
   try {
-    const trainers = await Trainer.find().sort({ isActive: -1, name: 1 });
+    const trainers = await Trainer.find().sort({ isActive: -1, name: 1 }).lean();
     res.json({ success: true, count: trainers.length, data: trainers });
   } catch (error) {
     next(error);
