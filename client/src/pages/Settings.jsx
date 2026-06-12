@@ -286,13 +286,27 @@ const WhatsAppSection = () => {
             <><WifiOff className="w-5 h-5 text-danger" strokeWidth={2} /><span className="text-danger font-mono font-bold text-sm tracking-widest uppercase">Disconnected</span></>
           )}
         </div>
+        {status?.error && (
+          <div className="bg-danger/10 border border-danger/20 text-danger text-xs font-mono p-3 mb-5 rounded flex items-center gap-2">
+            <WifiOff className="w-4 h-4 flex-shrink-0" />
+            <span>Connection Error: {status.error}</span>
+          </div>
+        )}
         <p className="text-[10px] font-body uppercase tracking-tag text-text-secondary mb-5">
           {status?.connected ? 'WhatsApp service is active and connected to your device.' : (status?.isIdle ? 'WhatsApp service is idle. Click connect to generate a QR code.' : 'WhatsApp service requires authentication. Please scan the QR code below.')}
         </p>
 
         {!status?.connected && (
           <div className="bg-bg-raised border border-border flex flex-col items-center justify-center p-6 mb-6 rounded">
-            {status?.isIdle ? (
+            {status?.error ? (
+              <div className="flex flex-col items-center gap-3 text-text-muted py-8 text-center max-w-md">
+                <WifiOff className="w-8 h-8 text-danger mb-2" />
+                <p className="text-xs text-text-secondary font-mono tracking-widest uppercase">Communication Failure</p>
+                <p className="text-[10px] text-text-secondary">
+                  The main backend was unable to communicate with the WhatsApp microservice. This is usually caused by mismatched <strong>WA_API_KEY</strong> variables or the microservice starting up.
+                </p>
+              </div>
+            ) : status?.isIdle ? (
               <div className="flex flex-col items-center gap-4 py-8">
                 <WifiOff className="w-8 h-8 text-text-muted mb-2" />
                 <p className="text-xs text-text-secondary font-mono tracking-widest uppercase">Service is Idle</p>

@@ -32,7 +32,10 @@ const getStatus = async () => {
     const response = await waClient.get('/status');
     return response.data;
   } catch (error) {
-    return { success: false, data: { isReady: false, qr: null } };
+    const statusMsg = error.response
+      ? `HTTP ${error.response.status} (${error.response.data?.error || error.message})`
+      : error.message;
+    return { success: false, data: { isReady: false, qr: null, error: statusMsg } };
   }
 };
 

@@ -29,6 +29,7 @@ router.get('/status', async (req, res) => {
       isIdle: waStatus.data?.isIdle || false,
       message: waStatus.data?.isReady ? 'WhatsApp service is active and connected.' : 'WhatsApp is waking up or needs QR scan.',
       qr: waStatus.data?.qr || null,
+      error: waStatus.data?.error || null,
     },
   });
 });
