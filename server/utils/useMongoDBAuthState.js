@@ -19,7 +19,12 @@ const useMongoDBAuthState = async () => {
         try {
             const doc = await collection.findOne({ _id: key });
             if (doc && doc.data) {
-                return JSON.parse(doc.data, BufferJSON.reviver);
+                if (typeof doc.data === 'string') {
+                    return JSON.parse(doc.data, BufferJSON.reviver);
+                } else {
+                    // Legacy Mongoose format fallback
+                    return JSON.parse(JSON.stringify(doc.data), BufferJSON.reviver);
+                }
             }
             return null;
         } catch (error) {
