@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const errorHandler = require('./middleware/errorHandler');
+const { apiLimiter } = require('./middleware/rateLimiter');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -23,18 +24,30 @@ const app = express();
 app.use(helmet());
 app.use(compression());
 
-// CORS
+// Global rate limiting — prevents DoS and abuse
+app.use(apiLimiter);
+
+// CORS — restrict origins in production
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim());
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.) in dev only
+      if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     exposedHeaders: ['X-New-Token'], // For JWT auto-refresh
   })
 );
 
-// Body parsing
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Body parsing — 1MB default to prevent memory exhaustion DoS
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Logging
 if (process.env.NODE_ENV !== 'test') {
@@ -58,11 +71,11 @@ app.get('/api/v1/health', (req, res) => {
   res.json({ success: true, message: 'GymOS API is running', timestamp: new Date() });
 });
 
-// 404 handler
+// 404 handler — does NOT reveal the attempted URL to prevent route enumeration
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    error: `Route ${req.originalUrl} not found`,
+    error: 'Resource not found.',
     code: 'NOT_FOUND',
   });
 });

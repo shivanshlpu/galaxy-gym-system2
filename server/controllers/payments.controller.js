@@ -3,11 +3,14 @@ const Member = require('../models/Member.model');
 const MembershipPlan = require('../models/MembershipPlan.model');
 const ActivityLog = require('../models/ActivityLog.model');
 const { addDays, getStartOfDay, getEndOfDay, getStartOfMonth, getEndOfMonth, getStartOfYear, getEndOfYear } = require('../utils/dateUtils');
+const { safePaginationLimit, safePage, pickFields } = require('../utils/sanitize');
 
 // GET /api/v1/payments
 const getPayments = async (req, res, next) => {
   try {
-    const { memberId, startDate, endDate, method, page = 1, limit = 20 } = req.query;
+    const { memberId, startDate, endDate, method, page, limit } = req.query;
+    const safeLim = safePaginationLimit(limit);
+    const safePg = safePage(page);
     const query = {};
 
     if (memberId) query.member = memberId;
@@ -18,7 +21,7 @@ const getPayments = async (req, res, next) => {
       if (endDate) query.paymentDate.$lte = getEndOfDay(new Date(endDate));
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (safePg - 1) * safeLim;
     const total = await Payment.countDocuments(query);
 
     const payments = await Payment.find(query)
@@ -26,13 +29,13 @@ const getPayments = async (req, res, next) => {
       .populate('plan', 'name durationDays price')
       .sort({ paymentDate: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(safeLim)
       .lean();
 
     res.json({
       success: true,
       data: payments,
-      pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) },
+      pagination: { total, page: safePg, limit: safeLim, pages: Math.ceil(total / safeLim) },
     });
   } catch (error) {
     next(error);
@@ -112,7 +115,10 @@ const getPayment = async (req, res, next) => {
 // PUT /api/v1/payments/:id
 const updatePayment = async (req, res, next) => {
   try {
-    const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, {
+    const PAYMENT_UPDATE_FIELDS = ['amount', 'paymentMethod', 'paymentDate', 'notes'];
+    const safeData = pickFields(req.body, PAYMENT_UPDATE_FIELDS);
+
+    const payment = await Payment.findByIdAndUpdate(req.params.id, safeData, {
       new: true,
       runValidators: true,
     }).populate('member', 'fullName memberId');

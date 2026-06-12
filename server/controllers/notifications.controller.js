@@ -1,28 +1,31 @@
 const Notification = require('../models/Notification.model');
+const { safePaginationLimit, safePage } = require('../utils/sanitize');
 
 // GET /api/v1/notifications
 const getNotifications = async (req, res, next) => {
   try {
-    const { isRead, type, page = 1, limit = 50 } = req.query;
+    const { isRead, type, page, limit } = req.query;
+    const safeLim = safePaginationLimit(limit, 50, 100);
+    const safePg = safePage(page);
     const query = {};
 
     if (isRead !== undefined) query.isRead = isRead === 'true';
     if (type) query.type = type;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (safePg - 1) * safeLim;
     const total = await Notification.countDocuments(query);
 
     const notifications = await Notification.find(query)
       .populate('member', 'fullName memberId phone photo')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(safeLim)
       .lean();
 
     res.json({
       success: true,
       data: notifications,
-      pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) },
+      pagination: { total, page: safePg, limit: safeLim, pages: Math.ceil(total / safeLim) },
     });
   } catch (error) {
     next(error);

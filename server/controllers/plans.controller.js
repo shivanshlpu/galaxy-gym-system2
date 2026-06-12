@@ -1,5 +1,6 @@
 const MembershipPlan = require('../models/MembershipPlan.model');
 const ActivityLog = require('../models/ActivityLog.model');
+const { pickFields } = require('../utils/sanitize');
 
 // GET /api/v1/plans
 const getPlans = async (req, res, next) => {
@@ -34,7 +35,10 @@ const createPlan = async (req, res, next) => {
 // PUT /api/v1/plans/:id
 const updatePlan = async (req, res, next) => {
   try {
-    const plan = await MembershipPlan.findByIdAndUpdate(req.params.id, req.body, {
+    const PLAN_FIELDS = ['name', 'durationDays', 'price', 'description', 'posterImage', 'isActive'];
+    const safeData = pickFields(req.body, PLAN_FIELDS);
+
+    const plan = await MembershipPlan.findByIdAndUpdate(req.params.id, safeData, {
       new: true,
       runValidators: true,
     });

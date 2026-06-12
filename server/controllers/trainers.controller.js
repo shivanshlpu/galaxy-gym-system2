@@ -1,4 +1,7 @@
 const Trainer = require('../models/Trainer.model');
+const { pickFields } = require('../utils/sanitize');
+
+const TRAINER_FIELDS = ['name', 'phone', 'specialization', 'price', 'dietCharge', 'isActive'];
 
 // @desc    Get all active trainers
 // @route   GET /api/v1/trainers
@@ -29,7 +32,8 @@ exports.getAllTrainers = async (req, res, next) => {
 // @access  Private/Admin
 exports.createTrainer = async (req, res, next) => {
   try {
-    const trainer = await Trainer.create(req.body);
+    const safeData = pickFields(req.body, TRAINER_FIELDS);
+    const trainer = await Trainer.create(safeData);
     res.status(201).json({ success: true, data: trainer });
   } catch (error) {
     next(error);
@@ -41,7 +45,8 @@ exports.createTrainer = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateTrainer = async (req, res, next) => {
   try {
-    const trainer = await Trainer.findByIdAndUpdate(req.params.id, req.body, {
+    const safeData = pickFields(req.body, TRAINER_FIELDS);
+    const trainer = await Trainer.findByIdAndUpdate(req.params.id, safeData, {
       new: true,
       runValidators: true,
     });

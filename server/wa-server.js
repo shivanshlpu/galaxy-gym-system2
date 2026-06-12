@@ -27,6 +27,21 @@ mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTop
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
+// API key authentication — all routes except /ping require valid key
+const WA_API_KEY = process.env.WA_API_KEY;
+app.use((req, res, next) => {
+  if (req.path === '/ping') return next();
+  if (!WA_API_KEY) {
+    console.error('⚠️  WA_API_KEY not set — rejecting all requests for security');
+    return res.status(500).json({ success: false, error: 'WhatsApp service misconfigured' });
+  }
+  const key = req.headers['x-api-key'];
+  if (key !== WA_API_KEY) {
+    return res.status(403).json({ success: false, error: 'Invalid API key' });
+  }
+  next();
+});
+
 let isReady = false;
 let isIdle = true;
 let currentQrBase64 = null;

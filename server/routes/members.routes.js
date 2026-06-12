@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth.middleware');
 const upload = require('../middleware/upload.middleware');
+const { verifyImageMagicBytes } = require('../middleware/upload.middleware');
 const {
   getMembers,
   createMember,
@@ -29,7 +30,7 @@ router.post('/', createMember);
 router.get('/:id', getMember);
 router.put('/:id', updateMember);
 router.delete('/:id', deleteMember);
-router.post('/:id/photo', upload.single('photo'), uploadPhoto);
+router.post('/:id/photo', upload.single('photo'), verifyImageMagicBytes, uploadPhoto);
 router.post('/:id/renew', renewMember);
 
 module.exports = router;

@@ -12,6 +12,7 @@ const envSchema = z.object({
   OPENWA_URL: z.string().default('http://localhost:3001'),
   WHATSAPP_ENABLED: z.string().default('false'),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+  WA_API_KEY: z.string().optional().default(''),
 });
 
 const validateEnv = () => {

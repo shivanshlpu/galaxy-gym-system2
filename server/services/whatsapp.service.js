@@ -5,12 +5,22 @@ const { getTemplate } = require('../utils/messageTemplates');
 
 const OPENWA_URL = process.env.OPENWA_URL || 'http://localhost:3001';
 
+// Authenticated axios instance for WhatsApp microservice
+const waClient = axios.create({
+  baseURL: OPENWA_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Api-Key': process.env.WA_API_KEY || '',
+  },
+});
+
 const sendMessage = async (phone, message, mediaBase64 = null) => {
   const formattedPhone = phone.replace(/\D/g, '') + '@c.us';
   try {
     const payload = { phone: formattedPhone, message };
     if (mediaBase64) payload.mediaBase64 = mediaBase64;
-    const response = await axios.post(`${OPENWA_URL}/send`, payload);
+    const response = await waClient.post('/send', payload);
     return response.data;
   } catch (error) {
     throw new Error(`Failed to send WhatsApp message: ${error.message}`);
@@ -19,7 +29,7 @@ const sendMessage = async (phone, message, mediaBase64 = null) => {
 
 const getStatus = async () => {
   try {
-    const response = await axios.get(`${OPENWA_URL}/status`);
+    const response = await waClient.get('/status');
     return response.data;
   } catch (error) {
     return { success: false, data: { isReady: false, qr: null } };
@@ -28,7 +38,7 @@ const getStatus = async () => {
 
 const disconnect = async () => {
   try {
-    const response = await axios.post(`${OPENWA_URL}/disconnect`);
+    const response = await waClient.post('/disconnect');
     return response.data;
   } catch (error) {
     throw new Error(`Failed to disconnect: ${error.message}`);
@@ -37,7 +47,7 @@ const disconnect = async () => {
 
 const connect = async () => {
   try {
-    const response = await axios.post(`${OPENWA_URL}/connect`);
+    const response = await waClient.post('/connect');
     return response.data;
   } catch (error) {
     throw new Error(`Failed to connect: ${error.message}`);
@@ -129,7 +139,7 @@ const sendMarketingBulk = async (memberIds, text, mediaBase64) => {
       const payload = { phone: formattedPhone, message: text };
       if (mediaBase64) payload.mediaBase64 = mediaBase64;
       
-      await axios.post(`${OPENWA_URL}/send`, payload);
+      await waClient.post('/send', payload);
       results.push({ memberId: id, success: true });
     } catch (err) {
       results.push({ memberId: id, success: false, error: err.message });

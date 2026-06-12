@@ -2,11 +2,14 @@ const Attendance = require('../models/Attendance.model');
 const Member = require('../models/Member.model');
 const ActivityLog = require('../models/ActivityLog.model');
 const { getStartOfDay, getEndOfDay, subDays } = require('../utils/dateUtils');
+const { safePaginationLimit, safePage } = require('../utils/sanitize');
 
 // GET /api/v1/attendance
 const getAttendance = async (req, res, next) => {
   try {
-    const { date, memberId, page = 1, limit = 50 } = req.query;
+    const { date, memberId, page, limit } = req.query;
+    const safeLim = safePaginationLimit(limit, 50, 100);
+    const safePg = safePage(page);
     const query = {};
 
     if (date) {
@@ -15,7 +18,7 @@ const getAttendance = async (req, res, next) => {
     }
     if (memberId) query.member = memberId;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (safePg - 1) * safeLim;
     const total = await Attendance.countDocuments(query);
 
     const records = await Attendance.find(query)
@@ -23,13 +26,13 @@ const getAttendance = async (req, res, next) => {
       .populate('markedBy', 'username')
       .sort({ date: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(safeLim)
       .lean();
 
     res.json({
       success: true,
       data: records,
-      pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) },
+      pagination: { total, page: safePg, limit: safeLim, pages: Math.ceil(total / safeLim) },
     });
   } catch (error) {
     next(error);

@@ -6,6 +6,8 @@ const { verifyToken } = require('../middleware/auth.middleware');
 router.use(verifyToken);
 const upload = require('../middleware/upload.middleware');
 
+const MAX_BULK_RECIPIENTS = 50; // Prevent WhatsApp ban from mass spamming
+
 // GET /api/v1/whatsapp/status
 router.get('/status', async (req, res) => {
   const enabled = process.env.WHATSAPP_ENABLED === 'true';
@@ -108,6 +110,12 @@ router.post('/send-bulk', async (req, res) => {
   const whatsappService = require('../services/whatsapp.service');
   try {
     const { memberIds, type } = req.body;
+    if (!Array.isArray(memberIds) || memberIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'memberIds array is required.' });
+    }
+    if (memberIds.length > MAX_BULK_RECIPIENTS) {
+      return res.status(400).json({ success: false, error: `Maximum ${MAX_BULK_RECIPIENTS} recipients per bulk send.` });
+    }
     const results = [];
     for (const memberId of memberIds) {
       try {
@@ -133,6 +141,12 @@ router.post('/send-marketing', async (req, res) => {
   
   try {
     const { memberIds, messageText, planId, mediaBase64 } = req.body;
+    if (!Array.isArray(memberIds) || memberIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'memberIds array is required.' });
+    }
+    if (memberIds.length > MAX_BULK_RECIPIENTS) {
+      return res.status(400).json({ success: false, error: `Maximum ${MAX_BULK_RECIPIENTS} recipients per marketing send.` });
+    }
     let posterBase64 = mediaBase64 || null;
     
     if (planId) {

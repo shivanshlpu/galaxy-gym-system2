@@ -1,5 +1,8 @@
 const SystemSettings = require('../models/SystemSettings.model');
 const { scheduleCronJob } = require('../jobs/dailyCron');
+const { pickFields } = require('../utils/sanitize');
+
+const SETTINGS_FIELDS = ['cronTime', 'welcomePoster', 'expiredPoster', 'reminderPosters'];
 
 // GET /api/v1/settings
 const getSettings = async (req, res, next) => {
@@ -17,17 +20,19 @@ const getSettings = async (req, res, next) => {
 // PUT /api/v1/settings
 const updateSettings = async (req, res, next) => {
   try {
+    const safeData = pickFields(req.body, SETTINGS_FIELDS);
+
     let settings = await SystemSettings.findOne();
     if (!settings) {
-      settings = new SystemSettings(req.body);
+      settings = new SystemSettings(safeData);
     } else {
-      Object.assign(settings, req.body);
+      Object.assign(settings, safeData);
     }
     
     await settings.save();
     
     // Reschedule cron job if time changed
-    if (req.body.cronTime) {
+    if (safeData.cronTime) {
       await scheduleCronJob();
     }
     

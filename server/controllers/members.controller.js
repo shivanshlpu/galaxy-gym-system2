@@ -7,18 +7,22 @@ const Trainer = require('../models/Trainer.model');
 const whatsappService = require('../services/whatsapp.service');
 const { addDays, getStartOfDay, getEndOfDay, getDaysRemaining } = require('../utils/dateUtils');
 const cloudinary = require('../utils/cloudinary');
+const { escapeRegex, safePaginationLimit, safePage, pickFields, sanitizeTextFields } = require('../utils/sanitize');
 
 // GET /api/v1/members
 const getMembers = async (req, res, next) => {
   try {
-    const { search, status, plan, gender, page = 1, limit = 20 } = req.query;
+    const { search, status, plan, gender, page, limit } = req.query;
+    const safeLim = safePaginationLimit(limit);
+    const safePg = safePage(page);
     const query = { status: { $ne: 'Deleted' } };
 
     if (search) {
+      const safeSearch = escapeRegex(search);
       query.$or = [
-        { fullName: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } },
-        { memberId: { $regex: search, $options: 'i' } },
+        { fullName: { $regex: safeSearch, $options: 'i' } },
+        { phone: { $regex: safeSearch, $options: 'i' } },
+        { memberId: { $regex: safeSearch, $options: 'i' } },
       ];
     }
     if (status) query.status = status;
@@ -26,7 +30,7 @@ const getMembers = async (req, res, next) => {
     if (plan) query.membershipPlan = plan;
     if (gender) query.gender = gender;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (safePg - 1) * safeLim;
     const total = await Member.countDocuments(query);
 
     const members = await Member.find(query)
@@ -34,7 +38,7 @@ const getMembers = async (req, res, next) => {
       .populate('membershipPlan', 'name durationDays price')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(safeLim)
       .lean();
 
     res.json({
@@ -42,9 +46,9 @@ const getMembers = async (req, res, next) => {
       data: members,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(total / parseInt(limit)),
+        page: safePg,
+        limit: safeLim,
+        pages: Math.ceil(total / safeLim),
       },
     });
   } catch (error) {
@@ -55,7 +59,17 @@ const getMembers = async (req, res, next) => {
 // POST /api/v1/members
 const createMember = async (req, res, next) => {
   try {
-    const { fullName, phone, email, address, gender, age, joiningDate, membershipPlan, membershipStartDate, paymentStatus, paymentMethod, notes, whatsappOptIn, trainerNeeded, trainer } = req.body;
+    const MEMBER_CREATE_FIELDS = [
+      'fullName', 'phone', 'email', 'address', 'gender', 'age',
+      'joiningDate', 'membershipPlan', 'membershipStartDate',
+      'paymentStatus', 'paymentMethod', 'notes', 'whatsappOptIn',
+      'trainerNeeded', 'trainer',
+    ];
+    const safeBody = sanitizeTextFields(
+      pickFields(req.body, MEMBER_CREATE_FIELDS),
+      ['fullName', 'email', 'address', 'notes']
+    );
+    const { fullName, phone, email, address, gender, age, joiningDate, membershipPlan, membershipStartDate, paymentStatus, paymentMethod, notes, whatsappOptIn, trainerNeeded, trainer } = safeBody;
     const { forceReplace } = req.query;
 
     const existingMember = await Member.findOne({ phone });
@@ -227,7 +241,16 @@ const getMember = async (req, res, next) => {
 // PUT /api/v1/members/:id
 const updateMember = async (req, res, next) => {
   try {
-    const { membershipPlan, membershipStartDate, ...rest } = req.body;
+    const MEMBER_UPDATE_FIELDS = [
+      'fullName', 'phone', 'email', 'address', 'gender', 'age',
+      'status', 'paymentStatus', 'paymentMethod', 'notes',
+      'whatsappOptIn', 'trainerNeeded', 'trainer', 'invoiceAmount',
+    ];
+    const rawBody = pickFields(req.body, [...MEMBER_UPDATE_FIELDS, 'membershipPlan', 'membershipStartDate']);
+    const { membershipPlan, membershipStartDate, ...rest } = sanitizeTextFields(
+      rawBody,
+      ['fullName', 'email', 'address', 'notes']
+    );
 
     // If the user manually changes the status to 'Deleted' from the edit form, perform a hard delete.
     if (rest.status === 'Deleted') {

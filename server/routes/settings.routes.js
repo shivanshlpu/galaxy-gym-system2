@@ -6,6 +6,7 @@ const { getSettings, updateSettings } = require('../controllers/settings.control
 router.use(verifyToken);
 
 router.get('/', getSettings);
-router.put('/', updateSettings);
+// Settings accepts base64 poster images — needs larger body limit than the global 1MB
+router.put('/', express.json({ limit: '10mb' }), updateSettings);
 
 module.exports = router;
