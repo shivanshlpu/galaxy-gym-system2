@@ -59,7 +59,7 @@ const intents = [
   },
   {
     id: 'revenue_this_month',
-    patterns: [/revenue.*(this month|month)/i, /how much.*collect/i, /monthly.*income/i, /earnings/i],
+    patterns: [/revenue.*month/i, /month.*revenue/i, /how much.*collect/i, /monthly.*income/i, /earnings/i],
     handler: async () => {
       const start = getStartOfMonth();
       const end = getEndOfMonth();
