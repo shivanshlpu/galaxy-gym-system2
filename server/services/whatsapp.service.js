@@ -27,15 +27,44 @@ const sendMessage = async (phone, message, mediaBase64 = null) => {
   }
 };
 
+let cachedStatus = null;
+let lastCacheTime = 0;
+const CACHE_TTL = 8000; // Cache status for 8 seconds to prevent flooding
+
 const getStatus = async () => {
+  const now = Date.now();
+  if (cachedStatus && (now - lastCacheTime < CACHE_TTL)) {
+    return cachedStatus;
+  }
+
   try {
     const response = await waClient.get('/status');
-    return response.data;
+    cachedStatus = response.data;
+    lastCacheTime = now;
+    return cachedStatus;
   } catch (error) {
-    const statusMsg = error.response
-      ? `HTTP ${error.response.status} (${error.response.data?.error || error.message})`
-      : error.message;
-    return { success: false, data: { isReady: false, qr: null, error: statusMsg } };
+    // Detect cold starts (Render free tier waking up)
+    const status = error.response?.status;
+    const isColdStart = status === 429 || status === 503 || status === 502 || error.code === 'ECONNABORTED';
+    
+    const statusMsg = isColdStart
+      ? 'WhatsApp service is waking up (cold start on Render). Please wait...'
+      : (error.response ? `HTTP ${status} (${error.response.data?.error || error.message})` : error.message);
+
+    const fallbackStatus = {
+      success: false,
+      data: {
+        isReady: false,
+        isIdle: false, // Hide connect button during boot
+        qr: null,
+        error: statusMsg
+      }
+    };
+    
+    // For errors, cache for only 2 seconds so we retry quickly once it wakes up
+    cachedStatus = fallbackStatus;
+    lastCacheTime = now - CACHE_TTL + 2000;
+    return fallbackStatus;
   }
 };
 

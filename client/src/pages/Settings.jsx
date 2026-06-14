@@ -209,7 +209,12 @@ const WhatsAppSection = () => {
   const { data: status } = useQuery({
     queryKey: ['whatsappStatus'],
     queryFn: async () => { const { data } = await api.get('/whatsapp/status'); return data.data; },
-    refetchInterval: (query) => (query?.state?.data?.connected ? 30000 : 3000), // poll every 3s if disconnected
+    refetchInterval: (query) => {
+      const data = query?.state?.data;
+      if (data?.connected) return 30000;
+      if (data?.error) return 10000; // Poll slower (10s) on error/cold-start
+      return 5000; // Poll every 5s if disconnected but healthy
+    },
   });
 
   const connectMutation = useMutation({
