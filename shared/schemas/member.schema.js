@@ -13,6 +13,9 @@ const memberSchema = z.object({
   paymentStatus: z.enum(['Paid', 'Pending', 'Overdue']).optional(),
   notes: z.string().optional(),
   whatsappOptIn: z.boolean().optional(),
+  trainerNeeded: z.boolean().optional(),
+  dietNeeded: z.boolean().optional(),
+  trainer: z.string().optional().or(z.literal('')),
 });
 
 module.exports = { memberSchema };

@@ -58,6 +58,7 @@ if (process.env.NODE_ENV !== 'test') {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/members', membersRoutes);
 app.use('/api/v1/plans', plansRoutes);
+app.use('/api/v1/trainers', require('./routes/trainers.routes'));
 app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api/v1/payments', paymentsRoutes);
 app.use('/api/v1/reports', reportsRoutes);

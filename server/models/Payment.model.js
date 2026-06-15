@@ -12,6 +12,18 @@ const paymentSchema = new mongoose.Schema(
       required: [true, 'Amount is required'],
       min: 0,
     },
+    planCost: {
+      type: Number,
+      default: 0,
+    },
+    trainerCost: {
+      type: Number,
+      default: 0,
+    },
+    dietCost: {
+      type: Number,
+      default: 0,
+    },
     paymentDate: {
       type: Date,
       required: [true, 'Payment date is required'],

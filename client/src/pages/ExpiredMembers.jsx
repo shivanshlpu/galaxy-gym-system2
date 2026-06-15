@@ -29,6 +29,11 @@ const ExpiredMembers = () => {
     queryFn: async () => { const { data } = await api.get('/plans'); return data.data; },
   });
 
+  const { data: trainers } = useQuery({
+    queryKey: ['trainers'],
+    queryFn: async () => { const { data } = await api.get('/trainers'); return data.data; },
+  });
+
   const renewMutation = useMutation({
     mutationFn: (formData) => api.post(`/members/${renewingMember._id}/renew`, formData),
     onSuccess: () => {
@@ -122,17 +127,20 @@ const ExpiredMembers = () => {
       </div>
 
       {/* Renew Slide-over */}
-      {showForm && <RenewSlideOver member={renewingMember} plans={plans} onClose={() => { setShowForm(false); setRenewingMember(null); }} onSave={(d) => renewMutation.mutate(d)} isLoading={renewMutation.isPending} />}
+      {showForm && <RenewSlideOver member={renewingMember} plans={plans} trainers={trainers} onClose={() => { setShowForm(false); setRenewingMember(null); }} onSave={(d) => renewMutation.mutate(d)} isLoading={renewMutation.isPending} />}
     </div>
   );
 };
 
-const RenewSlideOver = ({ member, plans, onClose, onSave, isLoading }) => {
+const RenewSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading }) => {
   const [form, setForm] = useState({
     membershipPlan: member?.membershipPlan?._id || member?.membershipPlan || '',
     membershipStartDate: format(new Date(), 'yyyy-MM-dd'),
     paymentStatus: 'Paid',
     paymentMethod: 'Cash',
+    trainerNeeded: member?.trainerNeeded || false,
+    dietNeeded: member?.dietNeeded || false,
+    trainer: member?.trainer?._id || member?.trainer || '',
     notes: 'Renewal Payment',
   });
 
@@ -144,7 +152,13 @@ const RenewSlideOver = ({ member, plans, onClose, onSave, isLoading }) => {
   };
 
   const selectedPlan = plans?.find(p => p._id === form.membershipPlan);
+  const selectedTrainer = trainers?.find(t => t._id === form.trainer);
+  
+  const months = selectedPlan ? Math.max(1, Math.round(selectedPlan.durationDays / 30)) : 1;
   const planPrice = selectedPlan ? selectedPlan.price : 0;
+  const trainerPrice = (form.trainerNeeded && selectedTrainer) ? selectedTrainer.price * months : 0;
+  const dietPrice = (form.trainerNeeded && selectedTrainer && form.dietNeeded) ? selectedTrainer.dietCharge * months : 0;
+  const totalAmount = planPrice + trainerPrice + dietPrice;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -187,6 +201,32 @@ const RenewSlideOver = ({ member, plans, onClose, onSave, isLoading }) => {
               </select>
             </div>
           </div>
+          
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer mb-4 p-3 bg-bg-raised border border-border rounded hover:border-accent-primary transition-colors">
+              <input type="checkbox" checked={form.trainerNeeded} onChange={(e) => handleChange('trainerNeeded', e.target.checked)} className="w-4 h-4 accent-accent-primary" />
+              <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Assign Personal Trainer</span>
+            </label>
+            {form.trainerNeeded && (
+              <div className="animate-slide-in space-y-4 mt-4">
+                <div>
+                  <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Select Trainer *</label>
+                  <select value={form.trainer} onChange={(e) => handleChange('trainer', e.target.value)} className="input-field" required={form.trainerNeeded}>
+                    <option value="">Choose a trainer...</option>
+                    {trainers?.map((t) => (
+                      <option key={t._id} value={t._id}>{t.name} — Charge: ₹{t.price} (+ ₹{t.dietCharge} Diet)/mo</option>
+                    ))}
+                  </select>
+                </div>
+                {form.trainer && (
+                  <label className="flex items-center gap-3 cursor-pointer p-3 bg-bg-raised border border-border rounded hover:border-accent-primary transition-colors">
+                    <input type="checkbox" checked={form.dietNeeded} onChange={(e) => handleChange('dietNeeded', e.target.checked)} className="w-4 h-4 accent-accent-primary" />
+                    <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Include Diet Plan</span>
+                  </label>
+                )}
+              </div>
+            )}
+          </div>
           <div>
             <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Notes</label>
             <textarea value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} className="input-field h-20 resize-none" />
@@ -197,9 +237,23 @@ const RenewSlideOver = ({ member, plans, onClose, onSave, isLoading }) => {
               <span>Plan: {selectedPlan?.name || 'None'}</span>
               <span>₹{planPrice}</span>
             </div>
+            {form.trainerNeeded && selectedTrainer && (
+              <>
+                <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
+                  <span>Trainer: {selectedTrainer.name} (×{months} months)</span>
+                  <span>₹{trainerPrice}</span>
+                </div>
+                {form.dietNeeded && (
+                  <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2 pb-2 border-b border-border">
+                    <span>Diet Plan (×{months} months)</span>
+                    <span>₹{dietPrice}</span>
+                  </div>
+                )}
+              </>
+            )}
             <div className="flex justify-between items-center text-sm text-white font-body font-bold uppercase tracking-wider pt-2 border-t border-border mt-2">
               <span>Total Amount to Pay</span>
-              <span className="text-accent-primary text-lg">₹{planPrice}</span>
+              <span className="text-accent-primary text-lg">₹{totalAmount}</span>
             </div>
           </div>
 

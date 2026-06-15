@@ -63,13 +63,13 @@ const createMember = async (req, res, next) => {
       'fullName', 'phone', 'email', 'address', 'gender', 'age',
       'joiningDate', 'membershipPlan', 'membershipStartDate',
       'paymentStatus', 'paymentMethod', 'notes', 'whatsappOptIn',
-      'trainerNeeded', 'trainer',
+      'trainerNeeded', 'trainer', 'dietNeeded'
     ];
     const safeBody = sanitizeTextFields(
       pickFields(req.body, MEMBER_CREATE_FIELDS),
       ['fullName', 'email', 'address', 'notes']
     );
-    const { fullName, phone, email, address, gender, age, joiningDate, membershipPlan, membershipStartDate, paymentStatus, paymentMethod, notes, whatsappOptIn, trainerNeeded, trainer } = safeBody;
+    const { fullName, phone, email, address, gender, age, joiningDate, membershipPlan, membershipStartDate, paymentStatus, paymentMethod, notes, whatsappOptIn, trainerNeeded, trainer, dietNeeded } = safeBody;
     const { forceReplace } = req.query;
 
     const existingMember = await Member.findOne({ phone });
@@ -98,6 +98,7 @@ const createMember = async (req, res, next) => {
     let expiryDate = null;
     let planPrice = 0;
     let planName = 'Custom Plan';
+    let months = 1;
     const startDate = membershipStartDate ? new Date(membershipStartDate) : new Date(joiningDate);
     if (membershipPlan) {
       const plan = await MembershipPlan.findById(membershipPlan);
@@ -105,6 +106,7 @@ const createMember = async (req, res, next) => {
         expiryDate = addDays(startDate, plan.durationDays);
         planPrice = plan.price;
         planName = plan.name;
+        months = Math.max(1, Math.round(plan.durationDays / 30));
       }
     }
 
@@ -114,9 +116,11 @@ const createMember = async (req, res, next) => {
     if (trainerNeeded && trainer) {
       const trainerDoc = await Trainer.findById(trainer);
       if (trainerDoc) {
-        trainerPrice = trainerDoc.price;
-        dietPrice = trainerDoc.dietCharge;
+        trainerPrice = trainerDoc.price * months;
         trainerName = trainerDoc.name;
+        if (dietNeeded) {
+          dietPrice = trainerDoc.dietCharge * months;
+        }
       }
     }
 
@@ -139,6 +143,7 @@ const createMember = async (req, res, next) => {
       whatsappOptIn: whatsappOptIn !== false,
       trainerNeeded,
       trainer: trainerNeeded ? trainer : null,
+      dietNeeded: trainerNeeded ? dietNeeded : false,
       invoiceAmount: totalInvoiceAmount,
     });
 
@@ -146,6 +151,9 @@ const createMember = async (req, res, next) => {
       await Payment.create({
         member: member._id,
         amount: totalInvoiceAmount,
+        planCost: planPrice,
+        trainerCost: trainerPrice,
+        dietCost: dietPrice,
         paymentDate: new Date(),
         paymentMethod: paymentMethod || 'Cash',
         plan: membershipPlan
@@ -157,7 +165,8 @@ const createMember = async (req, res, next) => {
       try {
         let msg = `*Welcome to Galaxy Fitness Club, ${member.fullName}!* 🏋️‍♂️\n\nYour membership has been activated.\n\n*Invoice Details:*\n- Plan: ${planName} (₹${planPrice})`;
         if (trainerNeeded) {
-          msg += `\n- Trainer (${trainerName}): ₹${trainerPrice}\n- Diet Plan: ₹${dietPrice}`;
+          msg += `\n- Trainer (${trainerName} × ${months}m): ₹${trainerPrice}`;
+          if (dietNeeded) msg += `\n- Diet Plan (× ${months}m): ₹${dietPrice}`;
         }
         msg += `\n\n*Total Amount: ₹${totalInvoiceAmount}*\n\nLet's get those gains! 💪`;
         
@@ -244,7 +253,7 @@ const updateMember = async (req, res, next) => {
     const MEMBER_UPDATE_FIELDS = [
       'fullName', 'phone', 'email', 'address', 'gender', 'age',
       'status', 'paymentStatus', 'paymentMethod', 'notes',
-      'whatsappOptIn', 'trainerNeeded', 'trainer', 'invoiceAmount',
+      'whatsappOptIn', 'trainerNeeded', 'trainer', 'dietNeeded', 'invoiceAmount',
     ];
     const rawBody = pickFields(req.body, [...MEMBER_UPDATE_FIELDS, 'membershipPlan', 'membershipStartDate']);
     const { membershipPlan, membershipStartDate, ...rest } = sanitizeTextFields(
@@ -370,7 +379,7 @@ const uploadPhoto = async (req, res, next) => {
 // POST /api/v1/members/:id/renew
 const renewMember = async (req, res, next) => {
   try {
-    const { membershipPlan, membershipStartDate, paymentMethod, paymentStatus, notes } = req.body;
+    const { membershipPlan, membershipStartDate, paymentMethod, paymentStatus, notes, trainerNeeded, trainer, dietNeeded } = req.body;
 
     const member = await Member.findById(req.params.id);
     if (!member) {
@@ -384,6 +393,29 @@ const renewMember = async (req, res, next) => {
 
     const startDate = new Date(membershipStartDate);
     const expiryDate = addDays(startDate, plan.durationDays);
+    const months = Math.max(1, Math.round(plan.durationDays / 30));
+
+    // Resolve trainer preferences: use input if provided, otherwise keep existing
+    const tNeeded = trainerNeeded !== undefined ? trainerNeeded : member.trainerNeeded;
+    const tId = trainer !== undefined ? trainer : member.trainer;
+    const dNeeded = dietNeeded !== undefined ? dietNeeded : member.dietNeeded;
+
+    let trainerPrice = 0;
+    let dietPrice = 0;
+    let trainerName = '';
+    
+    if (tNeeded && tId) {
+      const trainerDoc = await Trainer.findById(tId);
+      if (trainerDoc) {
+        trainerPrice = trainerDoc.price * months;
+        trainerName = trainerDoc.name;
+        if (dNeeded) {
+          dietPrice = trainerDoc.dietCharge * months;
+        }
+      }
+    }
+
+    const totalInvoiceAmount = plan.price + trainerPrice + dietPrice;
 
     // Update Member
     const updatedMember = await Member.findByIdAndUpdate(
@@ -395,6 +427,10 @@ const renewMember = async (req, res, next) => {
         membershipExpiryDate: expiryDate,
         paymentStatus: paymentStatus || 'Paid',
         paymentMethod: paymentMethod || 'Cash',
+        trainerNeeded: tNeeded,
+        trainer: tNeeded ? tId : null,
+        dietNeeded: tNeeded ? dNeeded : false,
+        invoiceAmount: totalInvoiceAmount,
       },
       { new: true, runValidators: true }
     ).populate('membershipPlan', 'name durationDays price');
@@ -403,7 +439,10 @@ const renewMember = async (req, res, next) => {
     if (paymentStatus === 'Paid') {
       await Payment.create({
         member: member._id,
-        amount: plan.price,
+        amount: totalInvoiceAmount,
+        planCost: plan.price,
+        trainerCost: trainerPrice,
+        dietCost: dietPrice,
         paymentDate: new Date(),
         paymentMethod: paymentMethod || 'Cash',
         plan: plan._id,
@@ -414,7 +453,32 @@ const renewMember = async (req, res, next) => {
     // Send WhatsApp Renewal Message
     if (updatedMember.whatsappOptIn && process.env.WHATSAPP_ENABLED === 'true') {
       try {
-        await whatsappService.sendRenewal(updatedMember, plan.name);
+        let renewalMsg = `Welcome back, ${updatedMember.fullName}! 🎉\n\nYour membership has been successfully renewed with the *${plan.name}* plan (₹${plan.price}).`;
+        if (tNeeded) {
+          renewalMsg += `\n- Trainer (${trainerName} × ${months}m): ₹${trainerPrice}`;
+          if (dNeeded) renewalMsg += `\n- Diet Plan (× ${months}m): ₹${dietPrice}`;
+        }
+        renewalMsg += `\n\n*Total Amount: ₹${totalInvoiceAmount}*\n\nWe are thrilled to see you back at Galaxy Fitness Club!\n\nLet's continue crushing those goals. See you at the gym! 💪`;
+
+        const SystemSettings = require('../models/SystemSettings.model');
+        const settings = await SystemSettings.findOne();
+        
+        let posterToSend = settings?.welcomePoster;
+        if (!posterToSend && plan && plan.posterImage) {
+          posterToSend = plan.posterImage;
+        }
+
+        await whatsappService.sendMessage(updatedMember.phone, renewalMsg, posterToSend);
+        
+        const WhatsAppLog = require('../models/WhatsAppLog.model');
+        await WhatsAppLog.create({
+          member: updatedMember._id,
+          phone: updatedMember.phone,
+          messageType: 'renewal',
+          messageText: renewalMsg,
+          status: 'sent',
+          sentAt: new Date()
+        });
       } catch (err) {
         console.error('Failed to send WhatsApp renewal message:', err);
       }

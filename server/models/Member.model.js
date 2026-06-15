@@ -71,6 +71,10 @@ const memberSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    dietNeeded: {
+      type: Boolean,
+      default: false,
+    },
     trainer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Trainer',

@@ -6,6 +6,9 @@ const paymentSchema = z.object({
   paymentDate: z.string().or(z.date()),
   paymentMethod: z.enum(['Cash', 'UPI']),
   plan: z.string().min(1, 'Plan is required'),
+  planCost: z.number().optional(),
+  trainerCost: z.number().optional(),
+  dietCost: z.number().optional(),
   notes: z.string().optional(),
 });
 
