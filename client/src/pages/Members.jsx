@@ -326,8 +326,7 @@ const MemberSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading }
               <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Payment Method</label>
               <select value={form.paymentMethod} onChange={(e) => handleChange('paymentMethod', e.target.value)} className="input-field">
                 <option value="Cash">Cash</option>
-                <option value="Online">Online (UPI/Bank)</option>
-                <option value="Card">Card/POS</option>
+                <option value="Online">Online/UPI</option>
               </select>
             </div>
           </div>

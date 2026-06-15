@@ -113,7 +113,7 @@ const seed = async () => {
     const paymentRecords = [
       { member: members[0]._id, amount: 800, method: 'UPI', plan: monthly._id, daysAgo: 20 },
       { member: members[1]._id, amount: 2200, method: 'Cash', plan: quarterly._id, daysAgo: 60 },
-      { member: members[2]._id, amount: 4000, method: 'Card', plan: halfYear._id, daysAgo: 100 },
+      { member: members[2]._id, amount: 4000, method: 'Online', plan: halfYear._id, daysAgo: 100 },
       { member: members[7]._id, amount: 7000, method: 'UPI', plan: annual._id, daysAgo: 200 },
       { member: members[9]._id, amount: 800, method: 'Cash', plan: monthly._id, daysAgo: 5 },
     ];

@@ -45,7 +45,6 @@ const Payments = () => {
             <option value="">All Methods</option>
             <option value="Cash">Cash</option>
             <option value="UPI">UPI</option>
-            <option value="Card">Card</option>
           </select>
         </div>
         <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2 py-2 h-[38px] min-h-0 text-sm w-full sm:w-auto justify-center">
@@ -206,7 +205,6 @@ const PaymentModal = ({ onClose }) => {
               <select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} className="input-field" required>
                 <option value="Cash">Cash</option>
                 <option value="UPI">UPI</option>
-                <option value="Card">Card</option>
               </select>
             </div>
             <div>

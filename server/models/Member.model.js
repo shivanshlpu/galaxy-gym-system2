@@ -56,7 +56,7 @@ const memberSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash', 'Online', 'Card'],
+      enum: ['Cash', 'Online'],
       default: 'Cash',
     },
     status: {

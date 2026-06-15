@@ -21,6 +21,16 @@ const Reports = () => {
     queryFn: async () => { const { data } = await api.get(`/reports/monthly?year=${year}&month=${month}`); return data.data; },
   });
 
+  const { data: weeklyData } = useQuery({
+    queryKey: ['weeklyReport'],
+    queryFn: async () => { const { data } = await api.get(`/reports/weekly`); return data.data; },
+  });
+
+  const { data: dailyData } = useQuery({
+    queryKey: ['dailyReport'],
+    queryFn: async () => { const { data } = await api.get(`/reports/daily`); return data.data; },
+  });
+
   const { data: revenueData } = useQuery({
     queryKey: ['revenueReport'],
     queryFn: async () => { const { data } = await api.get(`/reports/revenue?period=year&value=${year}`); return data.data; },
@@ -50,6 +60,46 @@ const Reports = () => {
 
   const tabs = ['daily', 'weekly', 'monthly', 'yearly'];
 
+  const getStats = () => {
+    switch (period) {
+      case 'daily':
+        return {
+          newMembers: dailyData?.newMembers?.count || 0,
+          renewals: { count: 'N/A', revenue: 0 },
+          activeMembers: monthlyData?.activeMembers || 0,
+          expiredMembers: dailyData?.expiringToday || 0,
+          label: 'Today'
+        };
+      case 'weekly':
+        return {
+          newMembers: weeklyData?.newMembers || 0,
+          renewals: { count: 'N/A', revenue: 0 },
+          activeMembers: monthlyData?.activeMembers || 0,
+          expiredMembers: weeklyData?.inactiveMembers || 0,
+          label: 'This week'
+        };
+      case 'yearly':
+        return {
+          newMembers: yearlyData?.memberGrowth?.reduce((sum, m) => sum + m.newMembers, 0) || 0,
+          renewals: { count: 'N/A', revenue: 0 },
+          activeMembers: monthlyData?.activeMembers || 0,
+          expiredMembers: 'N/A',
+          label: 'This year'
+        };
+      case 'monthly':
+      default:
+        return {
+          newMembers: monthlyData?.newMembers || 0,
+          renewals: monthlyData?.renewals || { count: 0, revenue: 0 },
+          activeMembers: monthlyData?.activeMembers || 0,
+          expiredMembers: monthlyData?.expiredMembers || 0,
+          label: 'This month'
+        };
+    }
+  };
+
+  const currentStats = getStats();
+
   return (
     <div className="space-y-6">
       {/* Period Tabs */}
@@ -68,24 +118,24 @@ const Reports = () => {
         <div className="iron-card p-6 flex flex-col justify-between h-32">
           <p className="text-[10px] font-body uppercase tracking-tag text-text-muted">New Members</p>
           <div>
-            <p className="font-mono font-bold text-4xl text-white leading-none mb-1">{monthlyData?.newMembers || 0}</p>
-            <p className="text-[10px] font-body text-text-secondary uppercase tracking-widest">This month</p>
+            <p className="font-mono font-bold text-4xl text-white leading-none mb-1">{currentStats.newMembers}</p>
+            <p className="text-[10px] font-body text-text-secondary uppercase tracking-widest">{currentStats.label}</p>
           </div>
         </div>
         <div className="iron-card p-6 flex flex-col justify-between h-32">
           <p className="text-[10px] font-body uppercase tracking-tag text-text-muted">Renewals</p>
           <div>
-            <p className="font-mono font-bold text-4xl text-white leading-none mb-1">{monthlyData?.renewals?.count || 0}</p>
-            <p className="text-[10px] font-mono text-accent-primary uppercase tracking-widest">₹{(monthlyData?.renewals?.revenue || 0).toLocaleString()}</p>
+            <p className="font-mono font-bold text-4xl text-white leading-none mb-1">{currentStats.renewals.count}</p>
+            <p className="text-[10px] font-mono text-accent-primary uppercase tracking-widest">{currentStats.renewals.revenue ? `₹${currentStats.renewals.revenue.toLocaleString()}` : ''}</p>
           </div>
         </div>
         <div className="iron-card p-6 flex flex-col justify-between h-32">
           <p className="text-[10px] font-body uppercase tracking-tag text-text-muted">Active Members</p>
-          <p className="font-mono font-bold text-4xl text-white leading-none">{monthlyData?.activeMembers || 0}</p>
+          <p className="font-mono font-bold text-4xl text-white leading-none">{currentStats.activeMembers}</p>
         </div>
         <div className="iron-card p-6 flex flex-col justify-between h-32">
-          <p className="text-[10px] font-body uppercase tracking-tag text-text-muted">Expired</p>
-          <p className="font-mono font-bold text-4xl text-danger leading-none">{monthlyData?.expiredMembers || 0}</p>
+          <p className="text-[10px] font-body uppercase tracking-tag text-text-muted">{period === 'weekly' ? 'Inactive' : 'Expired'}</p>
+          <p className="font-mono font-bold text-4xl text-danger leading-none">{currentStats.expiredMembers}</p>
         </div>
       </div>
 
