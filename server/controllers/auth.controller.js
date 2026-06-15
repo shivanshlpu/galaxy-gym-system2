@@ -128,6 +128,8 @@ const login = async (req, res, next) => {
           username: user.username,
           role: user.role,
           gymName: user.gymName,
+          gymContact: user.gymContact,
+          gymAddress: user.gymAddress,
         },
       },
       message: 'Login successful.',
@@ -211,4 +213,31 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { login, register, logout, getMe, changePassword };
+// PUT /api/v1/auth/profile
+const updateProfile = async (req, res, next) => {
+  try {
+    const { gymName, gymContact, gymAddress } = req.body;
+    
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $set: {
+          ...(gymName !== undefined && { gymName }),
+          ...(gymContact !== undefined && { gymContact }),
+          ...(gymAddress !== undefined && { gymAddress }),
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      data: user,
+      message: 'Profile updated successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { login, register, logout, getMe, changePassword, updateProfile };

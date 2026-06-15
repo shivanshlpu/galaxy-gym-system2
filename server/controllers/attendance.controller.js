@@ -161,8 +161,14 @@ const getTodayAttendance = async (req, res, next) => {
       weekStreak: streakMap[member._id.toString()] || [],
     }));
 
-    const presentCount = todayRecords.filter((r) => r.status === 'Present').length;
-    const absentCount = activeMembers.length - presentCount;
+    let presentCount = 0;
+    let absentCount = 0;
+
+    activeMembers.forEach((member) => {
+      const status = attendanceMap[member._id.toString()]?.status;
+      if (status === 'Present') presentCount++;
+      if (status === 'Absent') absentCount++;
+    });
 
     res.json({
       success: true,
@@ -171,7 +177,7 @@ const getTodayAttendance = async (req, res, next) => {
         total: activeMembers.length,
         present: presentCount,
         absent: absentCount,
-        rate: activeMembers.length > 0 ? Math.round((presentCount / activeMembers.length) * 100) : 0,
+        rate: presentCount + absentCount > 0 ? Math.round((presentCount / (presentCount + absentCount)) * 100) : 0,
       },
     });
   } catch (error) {

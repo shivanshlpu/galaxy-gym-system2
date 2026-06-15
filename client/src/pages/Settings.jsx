@@ -46,26 +46,56 @@ const Settings = () => {
   );
 };
 
-const GymInfoSection = ({ user }) => (
-  <div className="iron-card p-6">
-    <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">Gym Information</h2>
-    <div className="space-y-5 max-w-md">
-      <div>
-        <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Gym Name</label>
-        <input defaultValue={user?.gymName || 'GymOS Fitness Center'} className="input-field" />
+const GymInfoSection = ({ user }) => {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({
+    gymName: user?.gymName || 'GymOS Fitness Center',
+    gymContact: user?.gymContact || '',
+    gymAddress: user?.gymAddress || '',
+  });
+
+  const mutation = useMutation({
+    mutationFn: (data) => api.put('/auth/profile', data),
+    onSuccess: (data) => {
+      // Update the user in the auth store's local storage or query cache if needed.
+      // Usually, auth store relies on me endpoint, so invalidating works if we fetch it.
+      // Since it's a zustand store, we can just show toast and let user reload or we update it.
+      toast.success('Gym Information updated successfully!');
+      useAuthStore.getState().setUser(data.data.data); // Update zustand store
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to update gym info');
+    }
+  });
+
+  const handleSubmit = () => {
+    mutation.mutate(form);
+  };
+
+  return (
+    <div className="iron-card p-6">
+      <h2 className="text-xs font-body font-bold text-white uppercase tracking-wider mb-6 pb-4 border-b border-border">Gym Information</h2>
+      <div className="space-y-5 max-w-md">
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Gym Name</label>
+          <input value={form.gymName} onChange={(e) => setForm({ ...form, gymName: e.target.value })} className="input-field" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Contact Phone</label>
+          <input placeholder="Gym contact number" value={form.gymContact} onChange={(e) => setForm({ ...form, gymContact: e.target.value })} className="input-field" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Address</label>
+          <textarea placeholder="Gym address" value={form.gymAddress} onChange={(e) => setForm({ ...form, gymAddress: e.target.value })} className="input-field h-24 resize-none" />
+        </div>
+        <button onClick={handleSubmit} disabled={mutation.isPending} className="btn-primary mt-4 flex items-center justify-center gap-2">
+          {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+          SAVE CHANGES
+        </button>
       </div>
-      <div>
-        <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Contact Phone</label>
-        <input placeholder="Gym contact number" className="input-field" />
-      </div>
-      <div>
-        <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Address</label>
-        <textarea placeholder="Gym address" className="input-field h-24 resize-none" />
-      </div>
-      <button className="btn-primary mt-4">SAVE CHANGES</button>
     </div>
-  </div>
-);
+  );
+};
 
 const PlansSection = () => {
   const queryClient = useQueryClient();

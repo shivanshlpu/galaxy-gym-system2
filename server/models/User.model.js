@@ -30,6 +30,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: 'My Gym',
     },
+    gymContact: {
+      type: String,
+      default: '',
+    },
+    gymAddress: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,

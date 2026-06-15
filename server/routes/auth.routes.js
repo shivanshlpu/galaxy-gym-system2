@@ -8,6 +8,7 @@ const {
   logout,
   getMe,
   changePassword,
+  updateProfile,
 } = require('../controllers/auth.controller');
 
 // Rate-limited public routes
@@ -19,5 +20,6 @@ router.post('/register', authLimiter, verifyToken, register);
 router.post('/logout', verifyToken, logout);
 router.get('/me', verifyToken, getMe);
 router.put('/change-password', verifyToken, changePassword);
+router.put('/profile', verifyToken, updateProfile);
 
 module.exports = router;
