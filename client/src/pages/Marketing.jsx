@@ -9,10 +9,15 @@ const Marketing = () => {
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [messageText, setMessageText] = useState('We miss you! Come back to Galaxy Fitness Club and check out our latest membership plans. Renew today to keep your fitness journey going! 💪');
   const [marketingImage, setMarketingImage] = useState('');
+  const [memberFilter, setMemberFilter] = useState('Active');
 
-  const { data: expiredMembers } = useQuery({
-    queryKey: ['expiredMembers'],
-    queryFn: async () => { const { data } = await api.get('/members?status=Expired&limit=100'); return data.data; },
+  const { data: members } = useQuery({
+    queryKey: ['marketingMembers', memberFilter],
+    queryFn: async () => { 
+      const query = memberFilter === 'All' ? '' : `&status=${memberFilter}`;
+      const { data } = await api.get(`/members?limit=1000${query}`); 
+      return data.data; 
+    },
   });
 
   const { data: settings } = useQuery({
@@ -68,8 +73,8 @@ const Marketing = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedMembers.length === expiredMembers?.length) setSelectedMembers([]);
-    else setSelectedMembers(expiredMembers?.map(m => m._id) || []);
+    if (selectedMembers.length === members?.length) setSelectedMembers([]);
+    else setSelectedMembers(members?.map(m => m._id) || []);
   };
 
   const handleSend = () => {
@@ -146,19 +151,32 @@ const Marketing = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary">Expired Members</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary">Target Audience</h3>
+                <select 
+                  value={memberFilter} 
+                  onChange={(e) => { setMemberFilter(e.target.value); setSelectedMembers([]); }} 
+                  className="bg-bg-raised border border-border rounded text-xs text-white p-1 ml-2 outline-none"
+                >
+                  <option value="Active">Active Members</option>
+                  <option value="Expired">Expired Members</option>
+                  <option value="All">All Members</option>
+                </select>
+              </div>
               <button onClick={handleSelectAll} className="text-xs text-accent-primary hover:text-white transition-colors">
-                {selectedMembers.length === expiredMembers?.length ? 'Deselect All' : 'Select All'}
+                {selectedMembers.length === members?.length ? 'Deselect All' : 'Select All'}
               </button>
             </div>
             <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-              {expiredMembers?.length === 0 && <p className="text-sm text-text-muted">No expired members found.</p>}
-              {expiredMembers?.map(member => (
+              {members?.length === 0 && <p className="text-sm text-text-muted">No members found.</p>}
+              {members?.map(member => (
                 <label key={member._id} className="flex items-center gap-3 p-3 border border-border bg-bg-surface rounded cursor-pointer hover:border-accent-primary transition-colors">
                   <input type="checkbox" checked={selectedMembers.includes(member._id)} onChange={() => toggleMember(member._id)} className="w-4 h-4 accent-accent-primary bg-transparent border-border" />
                   <div>
                     <p className="text-sm font-bold text-white">{member.fullName}</p>
-                    <p className="text-[10px] font-mono text-text-muted">{member.phone} • Expired: {new Date(member.membershipExpiryDate).toLocaleDateString()}</p>
+                    <p className="text-[10px] font-mono text-text-muted">
+                      {member.phone} • {member.status === 'Active' ? 'Active' : 'Expired'}: {new Date(member.membershipExpiryDate).toLocaleDateString()}
+                    </p>
                   </div>
                 </label>
               ))}
