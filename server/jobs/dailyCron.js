@@ -37,8 +37,10 @@ const scheduleCronJob = async () => {
     }
 
     // Schedule new job
-    currentJob = cron.schedule(`${minute} ${hour} * * *`, runDailyTasks);
-    console.log(`⏰ Daily cron job scheduled for ${cronTime}`);
+    currentJob = cron.schedule(`${minute} ${hour} * * *`, runDailyTasks, {
+      timezone: 'Asia/Kolkata'
+    });
+    console.log(`⏰ Daily cron job scheduled for ${cronTime} (IST)`);
   } catch (err) {
     console.error('❌ Failed to schedule cron job:', err.message);
   }
