@@ -1,7 +1,7 @@
 const Trainer = require('../models/Trainer.model');
 const { pickFields } = require('../utils/sanitize');
 
-const TRAINER_FIELDS = ['name', 'phone', 'specialization', 'price', 'dietCharge', 'isActive'];
+const TRAINER_FIELDS = ['name', 'experienceYears', 'price', 'dietCharge', 'isActive'];
 
 // @desc    Get all active trainers
 // @route   GET /api/v1/trainers
