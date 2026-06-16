@@ -3,6 +3,8 @@ const Attendance = require('../models/Attendance.model');
 const Payment = require('../models/Payment.model');
 const { getStartOfDay, getEndOfDay, getStartOfWeek, getEndOfWeek, getStartOfMonth, getEndOfMonth, getStartOfYear, getEndOfYear, subDays } = require('../utils/dateUtils');
 
+const mongoose = require('mongoose');
+
 // GET /api/v1/reports/daily
 const getDailyReport = async (req, res, next) => {
   try {
@@ -11,30 +13,32 @@ const getDailyReport = async (req, res, next) => {
     const end = getEndOfDay(date);
 
     const [newMembers, attendance, payments, expired] = await Promise.all([
-      Member.find({ joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' } }),
+      Member.find({ joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' }, adminId: req.user.id }),
       Attendance.aggregate([
-        { $match: { date: { $gte: start, $lte: end } } },
+        { $match: { date: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
       Payment.aggregate([
-        { $match: { paymentDate: { $gte: start, $lte: end } } },
+        { $match: { paymentDate: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         { $group: { _id: '$paymentMethod', total: { $sum: '$amount' }, count: { $sum: 1 } } },
       ]),
-      Member.countDocuments({ membershipExpiryDate: { $gte: start, $lte: end }, status: 'Active' }),
+      Member.countDocuments({ membershipExpiryDate: { $gte: start, $lte: end }, adminId: req.user.id }),
     ]);
 
     const attendanceMap = {};
     attendance.forEach((a) => (attendanceMap[a._id] = a.count));
     const totalRevenue = payments.reduce((sum, p) => sum + p.total, 0);
+    const totalCount = payments.reduce((sum, p) => sum + p.count, 0);
 
     res.json({
       success: true,
       data: {
         date: start,
         newMembers: { count: newMembers.length, list: newMembers },
+        renewals: { count: totalCount, revenue: totalRevenue },
         attendance: { present: attendanceMap.Present || 0, absent: attendanceMap.Absent || 0 },
         revenue: { total: totalRevenue, byMethod: payments },
-        expiringToday: expired,
+        expiredMembers: expired,
       },
     });
   } catch (error) {
@@ -49,20 +53,22 @@ const getWeeklyReport = async (req, res, next) => {
     const start = getStartOfWeek(date);
     const end = getEndOfWeek(date);
 
-    const [newMembers, attendanceStats, payments, inactiveCount] = await Promise.all([
-      Member.countDocuments({ joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' } }),
+    const [newMembers, attendanceStats, payments, inactiveCount, expiredCount] = await Promise.all([
+      Member.countDocuments({ joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' }, adminId: req.user.id }),
       Attendance.aggregate([
-        { $match: { date: { $gte: start, $lte: end } } },
+        { $match: { date: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
       Payment.aggregate([
-        { $match: { paymentDate: { $gte: start, $lte: end } } },
+        { $match: { paymentDate: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         { $group: { _id: '$paymentMethod', total: { $sum: '$amount' }, count: { $sum: 1 } } },
       ]),
       Member.countDocuments({
         status: 'Active',
+        adminId: req.user.id,
         $or: [{ lastAttendance: { $lt: subDays(new Date(), 5) } }, { lastAttendance: null }],
       }),
+      Member.countDocuments({ membershipExpiryDate: { $gte: start, $lte: end }, adminId: req.user.id }),
     ]);
 
     const attendanceMap = {};
@@ -70,12 +76,14 @@ const getWeeklyReport = async (req, res, next) => {
     const totalPresent = attendanceMap.Present || 0;
     const totalAbsent = attendanceMap.Absent || 0;
     const totalRevenue = payments.reduce((sum, p) => sum + p.total, 0);
+    const totalCount = payments.reduce((sum, p) => sum + p.count, 0);
 
     res.json({
       success: true,
       data: {
         period: { start, end },
         newMembers,
+        renewals: { count: totalCount, revenue: totalRevenue },
         attendance: {
           present: totalPresent,
           absent: totalAbsent,
@@ -83,6 +91,7 @@ const getWeeklyReport = async (req, res, next) => {
         },
         revenue: { total: totalRevenue, byMethod: payments },
         inactiveMembers: inactiveCount,
+        expiredMembers: expiredCount,
       },
     });
   } catch (error) {
@@ -100,9 +109,9 @@ const getMonthlyReport = async (req, res, next) => {
     const end = getEndOfMonth(date);
 
     const [newMembers, attendanceStats, payments, expiredCount, activeCount] = await Promise.all([
-      Member.countDocuments({ joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' } }),
+      Member.countDocuments({ joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' }, adminId: req.user.id }),
       Attendance.aggregate([
-        { $match: { date: { $gte: start, $lte: end } } },
+        { $match: { date: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
@@ -113,11 +122,11 @@ const getMonthlyReport = async (req, res, next) => {
         { $sort: { _id: 1 } },
       ]),
       Payment.aggregate([
-        { $match: { paymentDate: { $gte: start, $lte: end } } },
+        { $match: { paymentDate: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         { $group: { _id: '$paymentMethod', total: { $sum: '$amount' }, count: { $sum: 1 } } },
       ]),
-      Member.countDocuments({ membershipExpiryDate: { $gte: start, $lte: end } }),
-      Member.countDocuments({ status: 'Active' }),
+      Member.countDocuments({ membershipExpiryDate: { $gte: start, $lte: end }, adminId: req.user.id }),
+      Member.countDocuments({ status: 'Active', adminId: req.user.id }),
     ]);
 
     const totalRevenue = payments.reduce((sum, p) => sum + p.total, 0);
@@ -147,14 +156,14 @@ const getYearlyReport = async (req, res, next) => {
     const start = getStartOfYear(new Date(year, 0, 1));
     const end = getEndOfYear(new Date(year, 0, 1));
 
-    const [memberGrowth, revenueByMonth, attendanceByMonth] = await Promise.all([
+    const [memberGrowth, revenueByMonth, attendanceByMonth, expiredCount] = await Promise.all([
       Member.aggregate([
-        { $match: { joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' } } },
+        { $match: { joiningDate: { $gte: start, $lte: end }, status: { $ne: 'Deleted' }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         { $group: { _id: { $month: '$joiningDate' }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
       Payment.aggregate([
-        { $match: { paymentDate: { $gte: start, $lte: end } } },
+        { $match: { paymentDate: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         {
           $group: {
             _id: { $month: '$paymentDate' },
@@ -165,7 +174,7 @@ const getYearlyReport = async (req, res, next) => {
         { $sort: { _id: 1 } },
       ]),
       Attendance.aggregate([
-        { $match: { date: { $gte: start, $lte: end } } },
+        { $match: { date: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
         {
           $group: {
             _id: { $month: '$date' },
@@ -175,12 +184,17 @@ const getYearlyReport = async (req, res, next) => {
         },
         { $sort: { _id: 1 } },
       ]),
+      Member.countDocuments({ membershipExpiryDate: { $gte: start, $lte: end }, adminId: req.user.id }),
     ]);
+
+    const totalRevenue = revenueByMonth.reduce((sum, r) => sum + r.total, 0);
+    const totalCount = revenueByMonth.reduce((sum, r) => sum + r.count, 0);
 
     res.json({
       success: true,
       data: {
         year,
+        renewals: { count: totalCount, revenue: totalRevenue },
         memberGrowth: Array.from({ length: 12 }, (_, i) => ({
           month: i + 1,
           newMembers: memberGrowth.find((m) => m._id === i + 1)?.count || 0,
@@ -195,6 +209,7 @@ const getYearlyReport = async (req, res, next) => {
           present: attendanceByMonth.find((a) => a._id === i + 1)?.present || 0,
           absent: attendanceByMonth.find((a) => a._id === i + 1)?.absent || 0,
         })),
+        expiredMembers: expiredCount,
       },
     });
   } catch (error) {
@@ -220,7 +235,7 @@ const getRevenueReport = async (req, res, next) => {
     }
 
     const revenue = await Payment.aggregate([
-      { $match: { paymentDate: { $gte: start, $lte: end } } },
+      { $match: { paymentDate: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
       { $group: { _id: '$paymentMethod', total: { $sum: '$amount' }, count: { $sum: 1 } } },
     ]);
 
@@ -253,7 +268,7 @@ const getAttendanceReport = async (req, res, next) => {
     }
 
     const stats = await Attendance.aggregate([
-      { $match: { date: { $gte: start, $lte: end } } },
+      { $match: { date: { $gte: start, $lte: end }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },

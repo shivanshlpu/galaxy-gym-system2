@@ -186,7 +186,12 @@ const PaymentModal = ({ onClose }) => {
             <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Member *</label>
             <select value={form.member} onChange={(e) => setForm({ ...form, member: e.target.value })} className="input-field" required>
               <option value="">Select member</option>
-              {members?.map((m) => <option key={m._id} value={m._id}>{m.fullName} ({m.memberId})</option>)}
+              <optgroup label="Pending Payments">
+                {members?.filter(m => m.paymentStatus === 'Pending').map((m) => <option key={m._id} value={m._id}>{m.fullName} ({m.memberId})</option>)}
+              </optgroup>
+              <optgroup label="Other Members (For Renewals)">
+                {members?.filter(m => m.paymentStatus !== 'Pending').map((m) => <option key={m._id} value={m._id}>{m.fullName} ({m.memberId})</option>)}
+              </optgroup>
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">

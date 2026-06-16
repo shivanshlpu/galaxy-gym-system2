@@ -12,10 +12,10 @@ const { escapeRegex, safePaginationLimit, safePage, pickFields, sanitizeTextFiel
 // GET /api/v1/members
 const getMembers = async (req, res, next) => {
   try {
-    const { search, status, plan, gender, page, limit } = req.query;
+    const { search, status, paymentStatus, plan, gender, page, limit } = req.query;
     const safeLim = safePaginationLimit(limit);
     const safePg = safePage(page);
-    const query = { status: { $ne: 'Deleted' } };
+    const query = { status: { $ne: 'Deleted' }, adminId: req.user.id };
 
     if (search) {
       const safeSearch = escapeRegex(search);
@@ -25,10 +25,31 @@ const getMembers = async (req, res, next) => {
         { memberId: { $regex: safeSearch, $options: 'i' } },
       ];
     }
-    if (status) query.status = status;
-    else query.status = { $nin: ['Deleted', 'Expired'] };
+    if (status) {
+      if (status === 'Inactive') {
+        const cutoff = new Date();
+        cutoff.setHours(0, 0, 0, 0);
+        cutoff.setDate(cutoff.getDate() - 5);
+        
+        query.status = 'Active';
+        if (!query.$and) query.$and = [];
+        query.$and.push({
+          $or: [
+            { lastAttendance: { $lt: cutoff } },
+            { lastAttendance: null, joiningDate: { $lt: cutoff } },
+            { lastAttendance: null, joiningDate: null }
+          ]
+        });
+      } else {
+        query.status = status;
+      }
+    } else {
+      query.status = { $nin: ['Deleted', 'Expired'] };
+    }
+    
     if (plan) query.membershipPlan = plan;
     if (gender) query.gender = gender;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
 
     const skip = (safePg - 1) * safeLim;
     const total = await Member.countDocuments(query);
@@ -41,9 +62,23 @@ const getMembers = async (req, res, next) => {
       .limit(safeLim)
       .lean();
 
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - 5);
+
+    const processedMembers = members.map(m => {
+      if (m.status === 'Active') {
+        const refDate = m.lastAttendance || m.joiningDate;
+        if (!refDate || new Date(refDate) < cutoff) {
+          m.status = 'Inactive';
+        }
+      }
+      return m;
+    });
+
     res.json({
       success: true,
-      data: members,
+      data: processedMembers,
       pagination: {
         total,
         page: safePg,
@@ -72,7 +107,7 @@ const createMember = async (req, res, next) => {
     const { fullName, phone, email, address, gender, age, joiningDate, membershipPlan, membershipStartDate, paymentStatus, paymentMethod, notes, whatsappOptIn, trainerNeeded, trainer, dietNeeded } = safeBody;
     const { forceReplace } = req.query;
 
-    const existingMember = await Member.findOne({ phone });
+    const existingMember = await Member.findOne({ phone, adminId: req.user.id });
     if (existingMember) {
       if (existingMember.status === 'Deleted' || forceReplace === 'true') {
         await Member.findByIdAndDelete(existingMember._id);
@@ -127,6 +162,7 @@ const createMember = async (req, res, next) => {
     const totalInvoiceAmount = planPrice + trainerPrice + dietPrice;
 
     const member = await Member.create({
+      adminId: req.user.id,
       fullName,
       phone,
       email,
@@ -149,6 +185,7 @@ const createMember = async (req, res, next) => {
 
     if (paymentStatus === 'Paid') {
       await Payment.create({
+        adminId: req.user.id,
         member: member._id,
         amount: totalInvoiceAmount,
         planCost: planPrice,
@@ -163,31 +200,19 @@ const createMember = async (req, res, next) => {
     // Send WhatsApp Invoice
     if (member.whatsappOptIn && process.env.WHATSAPP_ENABLED === 'true') {
       try {
-        let msg = `*Welcome to Galaxy Fitness Club, ${member.fullName}!* 🏋️‍♂️\n\nYour membership has been activated.\n\n*Invoice Details:*\n- Plan: ${planName} (₹${planPrice})`;
-        if (trainerNeeded) {
-          msg += `\n- Trainer (${trainerName} × ${months}m): ₹${trainerPrice}`;
-          if (dietNeeded) msg += `\n- Diet Plan (× ${months}m): ₹${dietPrice}`;
-        }
-        msg += `\n\n*Total Amount: ₹${totalInvoiceAmount}*\n\nLet's get those gains! 💪`;
+        const { format } = require('date-fns');
+        const startDateStr = format(startDate, 'dd MMM yyyy');
+        const endDateStr = expiryDate ? format(expiryDate, 'dd MMM yyyy') : 'N/A';
         
-        const SystemSettings = require('../models/SystemSettings.model');
-        const settings = await SystemSettings.findOne();
-        
-        let posterToSend = settings?.welcomePoster;
-        if (!posterToSend && membershipPlan && membershipPlan.posterImage) {
-          posterToSend = membershipPlan.posterImage;
-        }
-        
-        await whatsappService.sendMessage(member.phone, msg, posterToSend);
+        let fullPlanName = planName;
+        if (trainerNeeded) fullPlanName += ` + Trainer`;
+        if (dietNeeded) fullPlanName += ` + Diet`;
 
-        const WhatsAppLog = require('../models/WhatsAppLog.model');
-        await WhatsAppLog.create({
-          member: member._id,
-          phone: member.phone,
-          messageType: 'welcome',
-          messageText: msg,
-          status: 'sent',
-          sentAt: new Date()
+        await whatsappService.sendWelcome(member, paymentStatus === 'Pending', {
+          startDate: startDateStr,
+          endDate: endDateStr,
+          planName: fullPlanName,
+          amount: totalInvoiceAmount
         });
       } catch (err) {
         console.error('Failed to send WhatsApp welcome message:', err);
@@ -198,6 +223,7 @@ const createMember = async (req, res, next) => {
 
     // Log activity
     await ActivityLog.create({
+      adminId: req.user.id,
       action: 'member_added',
       entityType: 'Member',
       entityId: member._id,
@@ -218,7 +244,7 @@ const createMember = async (req, res, next) => {
 // GET /api/v1/members/:id
 const getMember = async (req, res, next) => {
   try {
-    const member = await Member.findById(req.params.id).populate('membershipPlan', 'name durationDays price');
+    const member = await Member.findOne({ _id: req.params.id, adminId: req.user.id }).populate('membershipPlan', 'name durationDays price');
 
     if (!member || member.status === 'Deleted') {
       return res.status(404).json({ success: false, error: 'Member not found.', code: 'NOT_FOUND' });
@@ -268,23 +294,38 @@ const updateMember = async (req, res, next) => {
 
     const updateData = { ...rest };
 
+    let isReactivation = false;
+    let oldMember = null;
+    let newPlanData = null;
+
     // Recalculate expiry if plan or start date changes
     if (membershipPlan || membershipStartDate) {
-      const member = await Member.findById(req.params.id);
-      const planId = membershipPlan || member.membershipPlan;
-      const startDate = membershipStartDate ? new Date(membershipStartDate) : member.membershipStartDate;
+      oldMember = await Member.findOne({ _id: req.params.id, adminId: req.user.id });
+      const planId = membershipPlan || oldMember.membershipPlan;
+      const startDate = membershipStartDate ? new Date(membershipStartDate) : oldMember.membershipStartDate;
 
       if (planId) {
         const plan = await MembershipPlan.findById(planId);
         if (plan) {
+          newPlanData = plan;
           updateData.membershipPlan = planId;
           updateData.membershipStartDate = startDate;
-          updateData.membershipExpiryDate = addDays(startDate, plan.durationDays);
+          const newExpiry = addDays(startDate, plan.durationDays);
+          updateData.membershipExpiryDate = newExpiry;
+          
+          // Auto-activate if expiry is in future
+          if (newExpiry >= getStartOfDay()) {
+            updateData.status = 'Active';
+            // Check if it was previously expired/inactive or expiry was in the past
+            if (oldMember.status === 'Expired' || oldMember.status === 'Inactive' || (oldMember.membershipExpiryDate && oldMember.membershipExpiryDate < getStartOfDay())) {
+              isReactivation = true;
+            }
+          }
         }
       }
     }
 
-    const member = await Member.findByIdAndUpdate(req.params.id, updateData, {
+    const member = await Member.findOneAndUpdate({ _id: req.params.id, adminId: req.user.id }, updateData, {
       new: true,
       runValidators: true,
     }).populate('membershipPlan', 'name durationDays price');
@@ -293,8 +334,43 @@ const updateMember = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Member not found.', code: 'NOT_FOUND' });
     }
 
+    // Reactivation WhatsApp Message
+    if (isReactivation && member.whatsappOptIn && process.env.WHATSAPP_ENABLED === 'true') {
+      try {
+        let msg = `*Welcome back, ${member.fullName}!* 🎉\n\nYour membership has been successfully reactivated.`;
+        if (newPlanData) {
+          msg += `\n\n*Current Plan:* ${newPlanData.name}`;
+        }
+        msg += `\n\nWe are thrilled to see you back at Galaxy Fitness Club!\n\nLet's continue crushing those goals. See you at the gym! 💪`;
+        
+        const SystemSettings = require('../models/SystemSettings.model');
+        const settings = await SystemSettings.findOne();
+        
+        // Priority: Activation Poster -> Welcome Poster -> Plan Poster
+        let posterToSend = settings?.activationPoster || settings?.welcomePoster;
+        if (!posterToSend && newPlanData && newPlanData.posterImage) {
+          posterToSend = newPlanData.posterImage;
+        }
+        
+        await whatsappService.sendMessage(member.phone, msg, posterToSend);
+
+        const WhatsAppLog = require('../models/WhatsAppLog.model');
+        await WhatsAppLog.create({
+          member: member._id,
+          phone: member.phone,
+          messageType: 'reactivation',
+          messageText: msg,
+          status: 'sent',
+          sentAt: new Date()
+        });
+      } catch (err) {
+        console.error('Failed to send WhatsApp reactivation message:', err);
+      }
+    }
+
     // Log activity
     await ActivityLog.create({
+      adminId: req.user.id,
       action: 'member_updated',
       entityType: 'Member',
       entityId: member._id,
@@ -311,7 +387,7 @@ const updateMember = async (req, res, next) => {
 // DELETE /api/v1/members/:id (hard delete)
 const deleteMember = async (req, res, next) => {
   try {
-    const member = await Member.findByIdAndDelete(req.params.id);
+    const member = await Member.findOneAndDelete({ _id: req.params.id, adminId: req.user.id });
 
     if (!member) {
       return res.status(404).json({ success: false, error: 'Member not found.', code: 'NOT_FOUND' });
@@ -324,6 +400,7 @@ const deleteMember = async (req, res, next) => {
     await WhatsAppLog.deleteMany({ member: member._id });
 
     await ActivityLog.create({
+      adminId: req.user.id,
       action: 'member_deleted',
       entityType: 'Member',
       entityId: member._id,
@@ -360,8 +437,8 @@ const uploadPhoto = async (req, res, next) => {
 
     const result = await uploadToCloudinary(req.file.buffer);
 
-    const member = await Member.findByIdAndUpdate(
-      req.params.id,
+    const member = await Member.findOneAndUpdate(
+      { _id: req.params.id, adminId: req.user.id },
       { photo: result.secure_url },
       { new: true }
     ).select('-photo'); // we don't need to return the photo string necessarily, wait actually the UI expects it in the response: res.json({data: {photo: member.photo}}). So let's not exclude it from findByIdAndUpdate result.
@@ -381,7 +458,7 @@ const renewMember = async (req, res, next) => {
   try {
     const { membershipPlan, membershipStartDate, paymentMethod, paymentStatus, notes, trainerNeeded, trainer, dietNeeded } = req.body;
 
-    const member = await Member.findById(req.params.id);
+    const member = await Member.findOne({ _id: req.params.id, adminId: req.user.id });
     if (!member) {
       return res.status(404).json({ success: false, error: 'Member not found.', code: 'NOT_FOUND' });
     }
@@ -418,8 +495,8 @@ const renewMember = async (req, res, next) => {
     const totalInvoiceAmount = plan.price + trainerPrice + dietPrice;
 
     // Update Member
-    const updatedMember = await Member.findByIdAndUpdate(
-      req.params.id,
+    const updatedMember = await Member.findOneAndUpdate(
+      { _id: req.params.id, adminId: req.user.id },
       {
         status: 'Active',
         membershipPlan: plan._id,
@@ -438,6 +515,7 @@ const renewMember = async (req, res, next) => {
     // Create Payment if Paid
     if (paymentStatus === 'Paid') {
       await Payment.create({
+        adminId: req.user.id,
         member: member._id,
         amount: totalInvoiceAmount,
         planCost: plan.price,
@@ -486,6 +564,7 @@ const renewMember = async (req, res, next) => {
 
     // Log activity
     await ActivityLog.create({
+      adminId: req.user.id,
       action: 'member_renewed',
       entityType: 'Member',
       entityId: updatedMember._id,
@@ -506,11 +585,12 @@ const getMemberStats = async (req, res, next) => {
     const sevenDaysLater = addDays(today, 7);
 
     const [total, active, expired, expiringSoon] = await Promise.all([
-      Member.countDocuments({ status: { $ne: 'Deleted' } }),
-      Member.countDocuments({ status: 'Active' }),
-      Member.countDocuments({ status: 'Expired' }),
+      Member.countDocuments({ status: { $ne: 'Deleted' }, adminId: req.user.id }),
+      Member.countDocuments({ status: 'Active', adminId: req.user.id }),
+      Member.countDocuments({ status: 'Expired', adminId: req.user.id }),
       Member.countDocuments({
         status: 'Active',
+        adminId: req.user.id,
         membershipExpiryDate: { $gte: today, $lte: sevenDaysLater },
       }),
     ]);
@@ -531,6 +611,7 @@ const getExpiringMembers = async (req, res, next) => {
     const sevenDaysLater = addDays(today, 7);
 
     const members = await Member.find({
+      adminId: req.user.id,
       status: 'Active',
       membershipExpiryDate: { $gte: today, $lte: sevenDaysLater },
     })
@@ -554,6 +635,7 @@ const getInactiveMembers = async (req, res, next) => {
     cutoff.setDate(cutoff.getDate() - parseInt(days));
 
     const members = await Member.find({
+      adminId: req.user.id,
       status: 'Active',
       $or: [{ lastAttendance: { $lt: cutoff } }, { lastAttendance: null }],
     })

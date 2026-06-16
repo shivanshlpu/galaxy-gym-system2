@@ -14,8 +14,8 @@ const {
 // Rate-limited public routes
 router.post('/login', authLimiter, login);
 
-// Protected: only authenticated admins can create new accounts
-router.post('/register', authLimiter, verifyToken, register);
+// Public: Anyone can register an admin account (or consider adding a setup flag if you only want 1 admin)
+router.post('/register', authLimiter, register);
 
 router.post('/logout', verifyToken, logout);
 router.get('/me', verifyToken, getMe);

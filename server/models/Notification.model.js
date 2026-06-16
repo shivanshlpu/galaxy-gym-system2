@@ -2,19 +2,13 @@ const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema(
   {
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
     type: {
       type: String,
-      enum: [
-        'expiry_7d',
-        'expiry_5d',
-        'expiry_3d',
-        'expiry_tomorrow',
-        'expired',
-        'absent_3d',
-        'absent_5d',
-        'absent_10d',
-        'payment_pending',
-      ],
       required: true,
     },
     member: {
@@ -43,8 +37,10 @@ const notificationSchema = new mongoose.Schema(
   }
 );
 
-notificationSchema.index({ isRead: 1, createdAt: -1 });
+notificationSchema.index({ isRead: 1 });
+notificationSchema.index({ createdAt: -1 }, { expireAfterSeconds: 86400 }); // Auto-delete after 24 hours
 notificationSchema.index({ type: 1 });
 notificationSchema.index({ member: 1 });
+notificationSchema.index({ adminId: 1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

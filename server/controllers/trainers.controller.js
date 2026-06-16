@@ -8,7 +8,7 @@ const TRAINER_FIELDS = ['name', 'experienceYears', 'price', 'dietCharge', 'isAct
 // @access  Private
 exports.getTrainers = async (req, res, next) => {
   try {
-    const trainers = await Trainer.find({ isActive: true }).sort({ name: 1 }).lean();
+    const trainers = await Trainer.find({ isActive: true, adminId: req.user.id }).sort({ name: 1 }).lean();
     res.json({ success: true, count: trainers.length, data: trainers });
   } catch (error) {
     next(error);
@@ -20,7 +20,7 @@ exports.getTrainers = async (req, res, next) => {
 // @access  Private/Admin
 exports.getAllTrainers = async (req, res, next) => {
   try {
-    const trainers = await Trainer.find().sort({ isActive: -1, name: 1 }).lean();
+    const trainers = await Trainer.find({ adminId: req.user.id }).sort({ isActive: -1, name: 1 }).lean();
     res.json({ success: true, count: trainers.length, data: trainers });
   } catch (error) {
     next(error);
@@ -33,7 +33,7 @@ exports.getAllTrainers = async (req, res, next) => {
 exports.createTrainer = async (req, res, next) => {
   try {
     const safeData = pickFields(req.body, TRAINER_FIELDS);
-    const trainer = await Trainer.create(safeData);
+    const trainer = await Trainer.create({ ...safeData, adminId: req.user.id });
     res.status(201).json({ success: true, data: trainer });
   } catch (error) {
     next(error);
@@ -46,7 +46,7 @@ exports.createTrainer = async (req, res, next) => {
 exports.updateTrainer = async (req, res, next) => {
   try {
     const safeData = pickFields(req.body, TRAINER_FIELDS);
-    const trainer = await Trainer.findByIdAndUpdate(req.params.id, safeData, {
+    const trainer = await Trainer.findOneAndUpdate({ _id: req.params.id, adminId: req.user.id }, safeData, {
       new: true,
       runValidators: true,
     });
@@ -66,7 +66,7 @@ exports.updateTrainer = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteTrainer = async (req, res, next) => {
   try {
-    const trainer = await Trainer.findByIdAndDelete(req.params.id);
+    const trainer = await Trainer.findOneAndDelete({ _id: req.params.id, adminId: req.user.id });
 
     if (!trainer) {
       return res.status(404).json({ success: false, error: 'Trainer not found' });

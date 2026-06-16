@@ -65,25 +65,25 @@ const Reports = () => {
       case 'daily':
         return {
           newMembers: dailyData?.newMembers?.count || 0,
-          renewals: { count: 'N/A', revenue: 0 },
+          renewals: dailyData?.renewals || { count: 0, revenue: 0 },
           activeMembers: monthlyData?.activeMembers || 0,
-          expiredMembers: dailyData?.expiringToday || 0,
+          expiredMembers: dailyData?.expiredMembers || 0,
           label: 'Today'
         };
       case 'weekly':
         return {
           newMembers: weeklyData?.newMembers || 0,
-          renewals: { count: 'N/A', revenue: 0 },
+          renewals: weeklyData?.renewals || { count: 0, revenue: 0 },
           activeMembers: monthlyData?.activeMembers || 0,
-          expiredMembers: weeklyData?.inactiveMembers || 0,
+          expiredMembers: weeklyData?.expiredMembers || 0,
           label: 'This week'
         };
       case 'yearly':
         return {
           newMembers: yearlyData?.memberGrowth?.reduce((sum, m) => sum + m.newMembers, 0) || 0,
-          renewals: { count: 'N/A', revenue: 0 },
+          renewals: yearlyData?.renewals || { count: 0, revenue: 0 },
           activeMembers: monthlyData?.activeMembers || 0,
-          expiredMembers: 'N/A',
+          expiredMembers: yearlyData?.expiredMembers || 0,
           label: 'This year'
         };
       case 'monthly':
@@ -134,7 +134,7 @@ const Reports = () => {
           <p className="font-mono font-bold text-4xl text-white leading-none">{currentStats.activeMembers}</p>
         </div>
         <div className="iron-card p-6 flex flex-col justify-between h-32">
-          <p className="text-[10px] font-body uppercase tracking-tag text-text-muted">{period === 'weekly' ? 'Inactive' : 'Expired'}</p>
+          <p className="text-[10px] font-body uppercase tracking-tag text-text-muted">Expired</p>
           <p className="font-mono font-bold text-4xl text-danger leading-none">{currentStats.expiredMembers}</p>
         </div>
       </div>

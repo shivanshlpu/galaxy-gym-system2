@@ -16,6 +16,7 @@ const createNotification = async (member, type, customMessage = null) => {
   const message = customMessage || messages[type] || `Notification for ${member.fullName}`;
 
   return Notification.create({
+    adminId: member.adminId,
     type,
     member: member._id,
     message,
@@ -23,8 +24,8 @@ const createNotification = async (member, type, customMessage = null) => {
 };
 
 const createOrUpdateNotification = async (member, type) => {
-  // Check if a similar unread notification already exists
   const existing = await Notification.findOne({
+    adminId: member.adminId,
     type,
     member: member._id,
     isRead: false,

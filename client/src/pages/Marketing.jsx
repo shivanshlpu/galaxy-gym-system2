@@ -111,9 +111,10 @@ const Marketing = () => {
           <ImageIcon className="w-4 h-4 text-accent-primary" /> Automated Message Posters
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {renderUploadBox("Welcome Poster", settings?.welcomePoster, (b64) => handleUpdateAsset('welcomePoster', b64), () => handleUpdateAsset('welcomePoster', null))}
           {renderUploadBox("Thank You (Expired) Poster", settings?.expiredPoster, (b64) => handleUpdateAsset('expiredPoster', b64), () => handleUpdateAsset('expiredPoster', null))}
+          {renderUploadBox("Welcome Again (Reactivation) Poster", settings?.activationPoster, (b64) => handleUpdateAsset('activationPoster', b64), () => handleUpdateAsset('activationPoster', null))}
         </div>
 
         <div>

@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { checkMembershipExpiry } = require('../services/membershipChecker');
 const { checkInactiveMembers } = require('../services/inactivityChecker');
+const { checkPendingPayments } = require('../services/pendingPaymentChecker');
 const Notification = require('../models/Notification.model');
 const SystemSettings = require('../models/SystemSettings.model');
 
@@ -11,6 +12,7 @@ const runDailyTasks = async () => {
   try {
     await checkMembershipExpiry();
     await checkInactiveMembers();
+    await checkPendingPayments();
 
     // Clean old notifications (older than 30 days)
     const thirtyDaysAgo = new Date();

@@ -178,12 +178,14 @@ const PlansSection = () => {
 const RemindersSection = () => {
   const queryClient = useQueryClient();
   const [cronTime, setCronTime] = useState('08:00');
+  const [dietPrice, setDietPrice] = useState('');
   
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => { 
       const { data } = await api.get('/settings'); 
       if (data.data?.cronTime) setCronTime(data.data.cronTime);
+      if (data.data?.dietPrice !== undefined) setDietPrice(data.data.dietPrice);
       return data.data; 
     },
   });
@@ -192,12 +194,12 @@ const RemindersSection = () => {
     mutationFn: (data) => api.put('/settings', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Reminder time updated! Cron job rescheduled.');
+      toast.success('System settings updated successfully!');
     },
   });
 
   const handleSave = () => {
-    saveMutation.mutate({ cronTime });
+    saveMutation.mutate({ cronTime, dietPrice: Number(dietPrice) });
   };
 
   return (
@@ -218,6 +220,16 @@ const RemindersSection = () => {
             value={cronTime} 
             onChange={(e) => setCronTime(e.target.value)} 
             className="input-field" 
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Universal Diet Price (₹ / Month)</label>
+          <input 
+            type="number" 
+            value={dietPrice} 
+            onChange={(e) => setDietPrice(e.target.value)} 
+            className="input-field" 
+            placeholder="e.g. 500"
           />
         </div>
       </div>
@@ -460,7 +472,7 @@ const TrainersSection = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editTrainer, setEditTrainer] = useState(null);
-  const [form, setForm] = useState({ name: '', experienceYears: '', price: '', dietCharge: '' });
+  const [form, setForm] = useState({ name: '', experienceYears: '', price: '' });
 
   const { data: trainers } = useQuery({
     queryKey: ['trainers'],
@@ -481,8 +493,8 @@ const TrainersSection = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['trainers'] }); toast.success('Trainer removed'); },
   });
 
-  const resetForm = () => { setShowForm(false); setEditTrainer(null); setForm({ name: '', experienceYears: '', price: '', dietCharge: '' }); };
-  const startEdit = (trainer) => { setEditTrainer(trainer); setForm({ name: trainer.name, experienceYears: trainer.experienceYears, price: trainer.price, dietCharge: trainer.dietCharge }); setShowForm(true); };
+  const resetForm = () => { setShowForm(false); setEditTrainer(null); setForm({ name: '', experienceYears: '', price: '' }); };
+  const startEdit = (trainer) => { setEditTrainer(trainer); setForm({ name: trainer.name, experienceYears: trainer.experienceYears, price: trainer.price }); setShowForm(true); };
 
   return (
     <div className="iron-card p-6">
@@ -498,7 +510,7 @@ const TrainersSection = () => {
           <div key={trainer._id} className="flex items-center justify-between py-4 px-5 bg-bg-surface border border-border table-row-hover transition-colors">
             <div>
               <p className="text-sm font-body font-bold text-white uppercase tracking-wider">{trainer.name}</p>
-              <p className="text-[10px] font-mono text-text-secondary mt-1 tracking-widest">{trainer.experienceYears} YRS EXP • DIET: ₹{trainer.dietCharge}</p>
+              <p className="text-[10px] font-mono text-text-secondary mt-1 tracking-widest">{trainer.experienceYears} YRS EXP</p>
             </div>
             <div className="flex items-center gap-4">
               <span className="font-mono font-bold text-xl text-accent-primary">₹{trainer.price}</span>
@@ -517,9 +529,8 @@ const TrainersSection = () => {
             <input type="number" placeholder="EXPERIENCE (YRS)" value={form.experienceYears} onChange={(e) => setForm({ ...form, experienceYears: e.target.value })} className="input-field" />
             <input type="number" placeholder="CHARGE (₹)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="input-field" />
           </div>
-          <input type="number" placeholder="DIET CHARGE (₹)" value={form.dietCharge} onChange={(e) => setForm({ ...form, dietCharge: e.target.value })} className="input-field" />
           <div className="flex gap-3 pt-2">
-            <button onClick={() => saveMutation.mutate({ ...form, experienceYears: parseInt(form.experienceYears), price: parseFloat(form.price), dietCharge: parseFloat(form.dietCharge) })}
+            <button onClick={() => saveMutation.mutate({ ...form, experienceYears: parseInt(form.experienceYears), price: parseFloat(form.price) })}
               disabled={saveMutation.isPending} className="btn-primary flex-1 flex justify-center items-center gap-2">
               {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />} SAVE
             </button>

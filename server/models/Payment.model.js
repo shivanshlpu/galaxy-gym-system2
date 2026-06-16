@@ -1,7 +1,13 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const paymentSchema = new mongoose.Schema(
   {
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
     member: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Member',
@@ -30,7 +36,7 @@ const paymentSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash', 'Online'],
+      enum: ['Cash', 'Online', 'UPI', 'Card'],
       required: [true, 'Payment method is required'],
     },
     plan: {
@@ -56,13 +62,14 @@ const paymentSchema = new mongoose.Schema(
 // Indexes
 paymentSchema.index({ member: 1 });
 paymentSchema.index({ paymentDate: -1 });
+paymentSchema.index({ adminId: 1 });
 
 // Auto-generate receipt number
 paymentSchema.pre('save', async function (next) {
   if (!this.receiptNumber) {
-    const count = await mongoose.model('Payment').countDocuments();
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    this.receiptNumber = `RCP-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+    const randomHex = crypto.randomBytes(3).toString('hex').toUpperCase();
+    this.receiptNumber = `RCP-${dateStr}-${randomHex}`;
   }
   next();
 });

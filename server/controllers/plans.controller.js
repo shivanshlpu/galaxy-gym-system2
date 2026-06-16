@@ -5,7 +5,7 @@ const { pickFields } = require('../utils/sanitize');
 // GET /api/v1/plans
 const getPlans = async (req, res, next) => {
   try {
-    const plans = await MembershipPlan.find({ isActive: true }).sort({ price: 1 }).lean();
+    const plans = await MembershipPlan.find({ isActive: true, adminId: req.user.id }).sort({ price: 1 }).lean();
     res.json({ success: true, data: plans });
   } catch (error) {
     next(error);
@@ -16,9 +16,10 @@ const getPlans = async (req, res, next) => {
 const createPlan = async (req, res, next) => {
   try {
     const { name, durationDays, price, description } = req.body;
-    const plan = await MembershipPlan.create({ name, durationDays, price, description });
+    const plan = await MembershipPlan.create({ adminId: req.user.id, name, durationDays, price, description });
 
     await ActivityLog.create({
+      adminId: req.user.id,
       action: 'plan_created',
       entityType: 'MembershipPlan',
       entityId: plan._id,
@@ -38,7 +39,7 @@ const updatePlan = async (req, res, next) => {
     const PLAN_FIELDS = ['name', 'durationDays', 'price', 'description', 'posterImage', 'isActive'];
     const safeData = pickFields(req.body, PLAN_FIELDS);
 
-    const plan = await MembershipPlan.findByIdAndUpdate(req.params.id, safeData, {
+    const plan = await MembershipPlan.findOneAndUpdate({ _id: req.params.id, adminId: req.user.id }, safeData, {
       new: true,
       runValidators: true,
     });
@@ -56,8 +57,8 @@ const updatePlan = async (req, res, next) => {
 // DELETE /api/v1/plans/:id (soft deactivate)
 const deletePlan = async (req, res, next) => {
   try {
-    const plan = await MembershipPlan.findByIdAndUpdate(
-      req.params.id,
+    const plan = await MembershipPlan.findOneAndUpdate(
+      { _id: req.params.id, adminId: req.user.id },
       { isActive: false },
       { new: true }
     );

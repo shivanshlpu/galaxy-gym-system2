@@ -1,6 +1,12 @@
 const templates = {
-  welcome: ({ member }) =>
-    `Hello ${member.fullName}! 🏋️\n\nWelcome to our gym! Your membership starts today.\n\nWe're excited to have you on board.\n\nThank you! 💪`,
+  welcome: ({ member, startDate, endDate, planName, amount }) =>
+    `Welcome to Galaxy Fitness Club, ${member.fullName}! 🏋️‍♂️\n\nYour membership has been activated.\nJoining Date: ${startDate}\nEnding Date: ${endDate}\n\n*Invoice Details:*\n- Plan: ${planName}\n*Total Paid: ₹${amount}*\n\nLet's get those gains! 💪`,
+
+  welcome_pending: ({ member, planName, amount }) =>
+    `Welcome to Galaxy Fitness Club, ${member.fullName}! 🏋️‍♂️\n\nYour registration is complete, but your payment is currently *PENDING*.\n\n*Invoice Details:*\n- Plan: ${planName}\n*Total Due: ₹${amount}*\n\nPlease clear your pending dues at the reception to officially activate your plan. Thank you!`,
+
+  payment_cleared: ({ member, amount, endDate }) =>
+    `Thank you, ${member.fullName}! 🎉\n\nWe have received your payment of ₹${amount}. Your pending dues are now completely cleared and your membership is fully active until ${endDate}.\n\nLet's crush those goals! 💪`,
 
   expiry: ({ member, daysLeft }) =>
     `Hello ${member.fullName},\n\nYour Galaxy Fitness Club gym membership will expire in *${daysLeft} day${daysLeft > 1 ? 's' : ''}*.\n\nPlease renew your membership to continue training without interruption.\n\nThank you! 🙏`,
@@ -21,7 +27,7 @@ const templates = {
     `Hey ${member.fullName}! 🚨 Alert: Your muscles are filing a missing persons report! 🕵️‍♂️\n\nYou haven't been to Galaxy Fitness Club in *${absentDays} days*! Don't let your gains turn into losses. Get off the couch, grab your gym gear, and let's crush some goals today! 💪🔥 See you at the gym!`,
 
   payment_reminder: ({ member }) =>
-    `Hello ${member.fullName},\n\nThis is a friendly reminder that your payment is pending.\n\nPlease make the payment at your earliest convenience.\n\nThank you! 🙏`,
+    `Hello ${member.fullName},\n\nThis is a gentle daily reminder that your gym payment of ₹${member.invoiceAmount || 0} is still pending.\n\nPlease clear your dues at the reception at your earliest convenience to avoid interruption of services. Thank you! 🙏`,
 };
 
 const getTemplate = (type, data) => {

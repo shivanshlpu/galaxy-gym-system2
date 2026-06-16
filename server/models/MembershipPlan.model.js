@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const membershipPlanSchema = new mongoose.Schema(
   {
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
     name: {
       type: String,
       required: [true, 'Plan name is required'],
@@ -29,5 +34,7 @@ const membershipPlanSchema = new mongoose.Schema(
     timestamps: { createdAt: true, updatedAt: false },
   }
 );
+
+membershipPlanSchema.index({ adminId: 1 });
 
 module.exports = mongoose.model('MembershipPlan', membershipPlanSchema);

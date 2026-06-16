@@ -12,6 +12,7 @@ const Members = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,11 +35,12 @@ const Members = () => {
     hasNextPage,
     isFetchingNextPage
   } = useInfiniteQuery({
-    queryKey: ['members', search, statusFilter],
+    queryKey: ['members', search, statusFilter, paymentStatusFilter],
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({ page: pageParam, limit: 20 });
       if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
+      if (paymentStatusFilter) params.set('paymentStatus', paymentStatusFilter);
       const { data } = await api.get(`/members?${params}`);
       return data;
     },
@@ -65,6 +67,11 @@ const Members = () => {
   const { data: trainers } = useQuery({
     queryKey: ['trainers'],
     queryFn: async () => { const { data } = await api.get('/trainers'); return data.data; },
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => { const { data } = await api.get('/settings'); return data.data; },
   });
 
   const deleteMutation = useMutation({
@@ -128,6 +135,13 @@ const Members = () => {
             <option value="">All Status</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
+          </select>
+          <select value={paymentStatusFilter} onChange={(e) => setPaymentStatusFilter(e.target.value)}
+            className="input-field w-full sm:w-auto py-2 h-[38px] min-h-0 text-sm">
+            <option value="">All Payments</option>
+            <option value="Paid">Paid</option>
+            <option value="Pending">Pending</option>
+            <option value="Overdue">Overdue</option>
           </select>
         </div>
         <button onClick={() => { setEditingMember(null); setShowForm(true); }} className="btn-primary flex items-center gap-2 py-2 h-[38px] min-h-0 text-sm w-full sm:w-auto justify-center">
@@ -215,12 +229,12 @@ const Members = () => {
       </div>
 
       {/* Add/Edit Slide-over */}
-      {showForm && <MemberSlideOver member={editingMember} plans={plans} trainers={trainers} onClose={() => { setShowForm(false); setEditingMember(null); }} onSave={(d) => saveMutation.mutate(d)} isLoading={saveMutation.isPending} />}
+      {showForm && <MemberSlideOver member={editingMember} plans={plans} trainers={trainers} settings={settings} onClose={() => { setShowForm(false); setEditingMember(null); }} onSave={(d) => saveMutation.mutate(d)} isLoading={saveMutation.isPending} />}
     </div>
   );
 };
 
-const MemberSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading }) => {
+const MemberSlideOver = ({ member, plans, trainers, settings, onClose, onSave, isLoading }) => {
   const [form, setForm] = useState({
     fullName: member?.fullName || '',
     phone: member?.phone || '',
@@ -252,7 +266,7 @@ const MemberSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading }
   const months = selectedPlan ? Math.max(1, Math.round(selectedPlan.durationDays / 30)) : 1;
   const planPrice = selectedPlan ? selectedPlan.price : 0;
   const trainerPrice = (form.trainerNeeded && selectedTrainer) ? selectedTrainer.price * months : 0;
-  const dietPrice = (form.trainerNeeded && selectedTrainer && form.dietNeeded) ? selectedTrainer.dietCharge * months : 0;
+  const dietPrice = (form.dietNeeded && !form.trainerNeeded) ? (settings?.dietPrice || 0) * months : 0;
   const totalAmount = planPrice + trainerPrice + dietPrice;
 
   return (
@@ -343,24 +357,23 @@ const MemberSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading }
               <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Assign Personal Trainer</span>
             </label>
             {form.trainerNeeded && (
-              <div className="animate-slide-in space-y-4 mt-4">
+              <div className="animate-slide-in space-y-4 mb-4 mt-4">
                 <div>
                   <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Select Trainer *</label>
                   <select value={form.trainer} onChange={(e) => handleChange('trainer', e.target.value)} className="input-field" required={form.trainerNeeded}>
                     <option value="">Choose a trainer...</option>
                     {trainers?.map((t) => (
-                      <option key={t._id} value={t._id}>{t.name} — Exp: {t.experienceYears}y — Charge: ₹{t.price} (+ ₹{t.dietCharge} Diet)/mo</option>
+                      <option key={t._id} value={t._id}>{t.name} — Exp: {t.experienceYears}y — Charge: ₹{t.price}/mo</option>
                     ))}
                   </select>
                 </div>
-                {form.trainer && (
-                  <label className="flex items-center gap-3 cursor-pointer p-3 bg-bg-raised border border-border rounded hover:border-accent-primary transition-colors">
-                    <input type="checkbox" checked={form.dietNeeded} onChange={(e) => handleChange('dietNeeded', e.target.checked)} className="w-4 h-4 accent-accent-primary" />
-                    <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Include Diet Plan</span>
-                  </label>
-                )}
               </div>
             )}
+            
+            <label className="flex items-center gap-3 cursor-pointer p-3 bg-bg-raised border border-border rounded hover:border-accent-primary transition-colors">
+              <input type="checkbox" checked={form.dietNeeded} onChange={(e) => handleChange('dietNeeded', e.target.checked)} className="w-4 h-4 accent-accent-primary" />
+              <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Include Diet Plan</span>
+            </label>
           </div>
 
           <div className="bg-bg-raised p-4 border border-border rounded">
@@ -369,18 +382,22 @@ const MemberSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading }
               <span>₹{planPrice}</span>
             </div>
             {form.trainerNeeded && selectedTrainer && (
-              <>
-                <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
-                  <span>Trainer: {selectedTrainer.name} (×{months} months)</span>
-                  <span>₹{trainerPrice}</span>
-                </div>
-                {form.dietNeeded && (
-                  <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2 pb-2 border-b border-border">
-                    <span>Diet Plan (×{months} months)</span>
-                    <span>₹{dietPrice}</span>
-                  </div>
-                )}
-              </>
+              <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
+                <span>Trainer: {selectedTrainer.name} (×{months} months)</span>
+                <span>₹{trainerPrice}</span>
+              </div>
+            )}
+            {form.dietNeeded && !form.trainerNeeded && (
+              <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
+                <span>Diet Plan (×{months} months)</span>
+                <span>₹{dietPrice}</span>
+              </div>
+            )}
+            {form.dietNeeded && form.trainerNeeded && (
+              <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
+                <span>Diet Plan (Included with Trainer)</span>
+                <span>₹0</span>
+              </div>
             )}
             <div className="flex justify-between items-center text-sm text-white font-body font-bold uppercase tracking-wider pt-2 border-t border-border mt-2">
               <span>Total Invoice Amount</span>

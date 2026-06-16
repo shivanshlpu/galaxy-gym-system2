@@ -4,13 +4,15 @@ const ActivityLog = require('../models/ActivityLog.model');
 const { getStartOfDay, getEndOfDay, subDays } = require('../utils/dateUtils');
 const { safePaginationLimit, safePage } = require('../utils/sanitize');
 
+const mongoose = require('mongoose');
+
 // GET /api/v1/attendance
 const getAttendance = async (req, res, next) => {
   try {
     const { date, memberId, page, limit } = req.query;
     const safeLim = safePaginationLimit(limit, 50, 100);
     const safePg = safePage(page);
-    const query = {};
+    const query = { adminId: req.user.id };
 
     if (date) {
       const d = new Date(date);
@@ -55,8 +57,9 @@ const bulkMarkAttendance = async (req, res, next) => {
     for (const record of records) {
       try {
         const attendance = await Attendance.findOneAndUpdate(
-          { member: record.memberId, date: attendanceDate },
+          { member: record.memberId, date: attendanceDate, adminId: req.user.id },
           {
+            adminId: req.user.id,
             member: record.memberId,
             date: attendanceDate,
             status: record.status,
@@ -67,7 +70,7 @@ const bulkMarkAttendance = async (req, res, next) => {
 
         // Update member's lastAttendance if present
         if (record.status === 'Present') {
-          await Member.findByIdAndUpdate(record.memberId, { lastAttendance: attendanceDate });
+          await Member.findOneAndUpdate({ _id: record.memberId, adminId: req.user.id }, { lastAttendance: attendanceDate });
         }
 
         results.push({ memberId: record.memberId, status: record.status, success: true });
@@ -77,6 +80,7 @@ const bulkMarkAttendance = async (req, res, next) => {
     }
 
     await ActivityLog.create({
+      adminId: req.user.id,
       action: 'attendance_marked',
       entityType: 'Attendance',
       performedBy: req.user.id,
@@ -93,8 +97,8 @@ const bulkMarkAttendance = async (req, res, next) => {
 const updateAttendance = async (req, res, next) => {
   try {
     const { status } = req.body;
-    const attendance = await Attendance.findByIdAndUpdate(
-      req.params.id,
+    const attendance = await Attendance.findOneAndUpdate(
+      { _id: req.params.id, adminId: req.user.id },
       { status, markedBy: req.user.id },
       { new: true, runValidators: true }
     ).populate('member', 'fullName memberId');
@@ -105,7 +109,7 @@ const updateAttendance = async (req, res, next) => {
 
     // Update lastAttendance if changed to Present
     if (status === 'Present') {
-      await Member.findByIdAndUpdate(attendance.member._id, { lastAttendance: attendance.date });
+      await Member.findOneAndUpdate({ _id: attendance.member._id, adminId: req.user.id }, { lastAttendance: attendance.date });
     }
 
     res.json({ success: true, data: attendance });
@@ -122,13 +126,14 @@ const getTodayAttendance = async (req, res, next) => {
     const endToday = getEndOfDay(targetDate);
 
     // Get all active members
-    const activeMembers = await Member.find({ status: 'Active' })
+    const activeMembers = await Member.find({ status: 'Active', adminId: req.user.id })
       .populate('membershipPlan', 'name')
       .sort({ fullName: 1 })
       .lean();
 
     // Get today's attendance records
     const todayRecords = await Attendance.find({
+      adminId: req.user.id,
       date: { $gte: today, $lte: endToday },
     }).lean();
 
@@ -140,6 +145,7 @@ const getTodayAttendance = async (req, res, next) => {
     // Get last 7 days attendance for streak display
     const sevenDaysAgo = subDays(today, 7);
     const weekRecords = await Attendance.find({
+      adminId: req.user.id,
       date: { $gte: sevenDaysAgo, $lte: endToday },
     }).lean();
 
@@ -189,7 +195,7 @@ const getTodayAttendance = async (req, res, next) => {
 const getMemberAttendance = async (req, res, next) => {
   try {
     const { startDate, endDate } = req.query;
-    const query = { member: req.params.id };
+    const query = { member: req.params.id, adminId: req.user.id };
 
     if (startDate && endDate) {
       query.date = {
@@ -211,8 +217,9 @@ const getAbsentToday = async (req, res, next) => {
     const today = getStartOfDay();
     const endToday = getEndOfDay();
 
-    const activeMembers = await Member.find({ status: 'Active' }).lean();
+    const activeMembers = await Member.find({ status: 'Active', adminId: req.user.id }).lean();
     const todayPresent = await Attendance.find({
+      adminId: req.user.id,
       date: { $gte: today, $lte: endToday },
       status: 'Present',
     }).lean();
@@ -233,7 +240,7 @@ const getAttendanceStats = async (req, res, next) => {
     const startDate = subDays(getStartOfDay(), parseInt(period));
 
     const stats = await Attendance.aggregate([
-      { $match: { date: { $gte: startDate } } },
+      { $match: { date: { $gte: startDate }, adminId: new mongoose.Types.ObjectId(req.user.id) } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },

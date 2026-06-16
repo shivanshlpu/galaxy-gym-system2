@@ -29,6 +29,11 @@ const ExpiredMembers = () => {
     queryFn: async () => { const { data } = await api.get('/plans'); return data.data; },
   });
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => { const { data } = await api.get('/settings'); return data.data; },
+  });
+
   const { data: trainers } = useQuery({
     queryKey: ['trainers'],
     queryFn: async () => { const { data } = await api.get('/trainers'); return data.data; },
@@ -127,12 +132,12 @@ const ExpiredMembers = () => {
       </div>
 
       {/* Renew Slide-over */}
-      {showForm && <RenewSlideOver member={renewingMember} plans={plans} trainers={trainers} onClose={() => { setShowForm(false); setRenewingMember(null); }} onSave={(d) => renewMutation.mutate(d)} isLoading={renewMutation.isPending} />}
+      {showForm && <RenewSlideOver member={renewingMember} plans={plans} trainers={trainers} settings={settings} onClose={() => { setShowForm(false); setRenewingMember(null); }} onSave={(d) => renewMutation.mutate(d)} isLoading={renewMutation.isPending} />}
     </div>
   );
 };
 
-const RenewSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading }) => {
+const RenewSlideOver = ({ member, plans, trainers, settings, onClose, onSave, isLoading }) => {
   const [form, setForm] = useState({
     membershipPlan: member?.membershipPlan?._id || member?.membershipPlan || '',
     membershipStartDate: format(new Date(), 'yyyy-MM-dd'),
@@ -157,7 +162,7 @@ const RenewSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading })
   const months = selectedPlan ? Math.max(1, Math.round(selectedPlan.durationDays / 30)) : 1;
   const planPrice = selectedPlan ? selectedPlan.price : 0;
   const trainerPrice = (form.trainerNeeded && selectedTrainer) ? selectedTrainer.price * months : 0;
-  const dietPrice = (form.trainerNeeded && selectedTrainer && form.dietNeeded) ? selectedTrainer.dietCharge * months : 0;
+  const dietPrice = form.dietNeeded ? (form.trainerNeeded ? 0 : (settings?.dietPrice || 0) * months) : 0;
   const totalAmount = planPrice + trainerPrice + dietPrice;
 
   return (
@@ -208,24 +213,23 @@ const RenewSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading })
               <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Assign Personal Trainer</span>
             </label>
             {form.trainerNeeded && (
-              <div className="animate-slide-in space-y-4 mt-4">
+              <div className="animate-slide-in space-y-4 mb-4 mt-4">
                 <div>
                   <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Select Trainer *</label>
                   <select value={form.trainer} onChange={(e) => handleChange('trainer', e.target.value)} className="input-field" required={form.trainerNeeded}>
                     <option value="">Choose a trainer...</option>
                     {trainers?.map((t) => (
-                      <option key={t._id} value={t._id}>{t.name} — Charge: ₹{t.price} (+ ₹{t.dietCharge} Diet)/mo</option>
+                      <option key={t._id} value={t._id}>{t.name} — Charge: ₹{t.price}/mo</option>
                     ))}
                   </select>
                 </div>
-                {form.trainer && (
-                  <label className="flex items-center gap-3 cursor-pointer p-3 bg-bg-raised border border-border rounded hover:border-accent-primary transition-colors">
-                    <input type="checkbox" checked={form.dietNeeded} onChange={(e) => handleChange('dietNeeded', e.target.checked)} className="w-4 h-4 accent-accent-primary" />
-                    <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Include Diet Plan</span>
-                  </label>
-                )}
               </div>
             )}
+            
+            <label className="flex items-center gap-3 cursor-pointer p-3 bg-bg-raised border border-border rounded hover:border-accent-primary transition-colors">
+              <input type="checkbox" checked={form.dietNeeded} onChange={(e) => handleChange('dietNeeded', e.target.checked)} className="w-4 h-4 accent-accent-primary" />
+              <span className="text-xs font-body font-bold text-white uppercase tracking-wider">Include Diet Plan</span>
+            </label>
           </div>
           <div>
             <label className="block text-[10px] font-body font-semibold uppercase tracking-tag text-text-secondary mb-1.5">Notes</label>
@@ -238,18 +242,22 @@ const RenewSlideOver = ({ member, plans, trainers, onClose, onSave, isLoading })
               <span>₹{planPrice}</span>
             </div>
             {form.trainerNeeded && selectedTrainer && (
-              <>
-                <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
-                  <span>Trainer: {selectedTrainer.name} (×{months} months)</span>
-                  <span>₹{trainerPrice}</span>
-                </div>
-                {form.dietNeeded && (
-                  <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2 pb-2 border-b border-border">
-                    <span>Diet Plan (×{months} months)</span>
-                    <span>₹{dietPrice}</span>
-                  </div>
-                )}
-              </>
+              <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
+                <span>Trainer: {selectedTrainer.name} (×{months} months)</span>
+                <span>₹{trainerPrice}</span>
+              </div>
+            )}
+            {form.dietNeeded && !form.trainerNeeded && (
+              <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2">
+                <span>Diet Plan (×{months} months)</span>
+                <span>₹{dietPrice}</span>
+              </div>
+            )}
+            {form.dietNeeded && form.trainerNeeded && (
+              <div className="flex justify-between items-center text-xs text-text-secondary font-body mb-2 pb-2 border-b border-border">
+                <span>Diet Plan (Included with Trainer)</span>
+                <span>₹0</span>
+              </div>
             )}
             <div className="flex justify-between items-center text-sm text-white font-body font-bold uppercase tracking-wider pt-2 border-t border-border mt-2">
               <span>Total Amount to Pay</span>

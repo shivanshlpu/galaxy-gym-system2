@@ -88,7 +88,7 @@ const connect = async () => {
 
 const sendReminder = async (member, daysLeft) => {
   const SystemSettings = require('../models/SystemSettings.model');
-  const settings = await SystemSettings.findOne();
+  const settings = await SystemSettings.findOne({ adminId: member.adminId });
   let mediaBase64 = null;
   if (settings && settings.reminderPosters && settings.reminderPosters.length > 0) {
     mediaBase64 = settings.reminderPosters[Math.floor(Math.random() * settings.reminderPosters.length)];
@@ -97,18 +97,24 @@ const sendReminder = async (member, daysLeft) => {
   return sendAndLog(member, 'expiry', message, mediaBase64);
 };
 
-const sendWelcome = async (member) => {
+const sendWelcome = async (member, isPending, invoiceDetails) => {
   const SystemSettings = require('../models/SystemSettings.model');
-  const settings = await SystemSettings.findOne();
-  const message = getTemplate('welcome', { member });
-  return sendAndLog(member, 'welcome', message, settings?.welcomePoster);
+  const settings = await SystemSettings.findOne({ adminId: member.adminId });
+  const templateType = isPending ? 'welcome_pending' : 'welcome';
+  const message = getTemplate(templateType, { member, ...invoiceDetails });
+  return sendAndLog(member, templateType, message, settings?.welcomePoster);
+};
+
+const sendPaymentCleared = async (member, amount, endDate) => {
+  const message = getTemplate('payment_cleared', { member, amount, endDate });
+  return sendAndLog(member, 'payment_cleared', message);
 };
 
 const sendExpired = async (member) => {
   const MembershipPlan = require('../models/MembershipPlan.model');
   const SystemSettings = require('../models/SystemSettings.model');
-  const activePlans = await MembershipPlan.find({ isActive: true });
-  const settings = await SystemSettings.findOne();
+  const activePlans = await MembershipPlan.find({ isActive: true, adminId: member.adminId });
+  const settings = await SystemSettings.findOne({ adminId: member.adminId });
   const message = getTemplate('expired', { member, activePlans });
   return sendAndLog(member, 'expired', message, settings?.expiredPoster);
 };
@@ -127,6 +133,7 @@ const sendInactive = async (member, absentDays) => {
 
 const sendAndLog = async (member, messageType, messageText, mediaBase64 = null) => {
   const log = await WhatsAppLog.create({
+    adminId: member.adminId,
     member: member._id,
     phone: member.phone,
     messageType,
@@ -198,4 +205,4 @@ const sendByType = async (memberId, type) => {
   }
 };
 
-module.exports = { sendMessage, sendReminder, sendWelcome, sendExpired, sendRenewal, sendInactive, sendByType, sendMarketingBulk, getStatus, disconnect, connect };
+module.exports = { sendMessage, sendReminder, sendWelcome, sendPaymentCleared, sendExpired, sendRenewal, sendInactive, sendByType, sendMarketingBulk, getStatus, disconnect, connect };

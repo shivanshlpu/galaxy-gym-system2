@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const trainerSchema = new mongoose.Schema(
   {
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
     name: {
       type: String,
       required: [true, 'Trainer name is required'],
@@ -31,5 +36,7 @@ const trainerSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+trainerSchema.index({ adminId: 1 });
 
 module.exports = mongoose.model('Trainer', trainerSchema);

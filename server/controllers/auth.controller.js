@@ -42,6 +42,7 @@ const register = async (req, res, next) => {
 
     // Log activity
     await ActivityLog.create({
+      adminId: user._id,
       action: 'admin_register',
       entityType: 'User',
       entityId: user._id,
@@ -111,6 +112,7 @@ const login = async (req, res, next) => {
 
     // Log activity
     await ActivityLog.create({
+      adminId: user._id,
       action: 'admin_login',
       entityType: 'User',
       entityId: user._id,

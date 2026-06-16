@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const memberSchema = new mongoose.Schema(
   {
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
     memberId: {
       type: String,
       unique: true,
@@ -56,7 +61,7 @@ const memberSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash', 'Online'],
+      enum: ['Cash', 'Online', 'UPI', 'Card'],
       default: 'Cash',
     },
     status: {
@@ -108,8 +113,18 @@ memberSchema.index({ fullName: 'text' });
 // Auto-generate memberId before saving
 memberSchema.pre('save', async function (next) {
   if (!this.memberId) {
-    const count = await mongoose.model('Member').countDocuments();
-    this.memberId = `GYM-${String(count + 1).padStart(4, '0')}`;
+    const lastMember = await mongoose.model('Member').findOne({}, 'memberId').sort({ _id: -1 });
+    let nextNum = 1;
+    if (lastMember && lastMember.memberId) {
+      const match = lastMember.memberId.match(/GYM-(\d+)/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      } else {
+        const count = await mongoose.model('Member').countDocuments();
+        nextNum = count + 1;
+      }
+    }
+    this.memberId = `GYM-${String(nextNum).padStart(4, '0')}`;
   }
   next();
 });

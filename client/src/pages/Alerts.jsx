@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Clock, UserX, CreditCard, Eye, CheckCircle, Bell, Loader2 } from 'lucide-react';
+import { AlertCircle, Clock, UserX, CreditCard, Eye, CheckCircle, Bell, Loader2, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
@@ -22,8 +22,8 @@ const Alerts = () => {
     queryKey: ['notifications', activeTab],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (activeTab === 'expiry') params.set('type', 'expiry_7d,expiry_5d,expiry_3d,expiry_tomorrow,expired');
-      if (activeTab === 'inactive') params.set('type', 'absent_3d,absent_5d,absent_10d');
+      if (activeTab === 'expiry') params.set('type', 'expiry_5d,expiry_4d,expiry_3d,expiry_2d,expiry_tomorrow,expired');
+      if (activeTab === 'inactive') params.set('type', 'absent_5d,absent_10d,absent_15d,absent_20d,absent_25d,absent_30d');
       if (activeTab === 'payment') params.set('type', 'payment_pending');
       const { data } = await api.get(`/notifications?${params}`);
       return data;
@@ -44,6 +44,15 @@ const Alerts = () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notificationCount'] });
       toast.success('All marked as read');
+    },
+  });
+
+  const clearAllMutation = useMutation({
+    mutationFn: () => api.delete('/notifications/clear-all'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notificationCount'] });
+      toast.success('All alerts cleared');
     },
   });
 
@@ -68,9 +77,12 @@ const Alerts = () => {
       </div>
 
       {/* Bulk Actions */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
         <button onClick={() => markAllReadMutation.mutate()} className="btn-secondary py-1.5 px-3 text-[10px] flex items-center gap-2">
           <CheckCircle className="w-3.5 h-3.5" strokeWidth={2} /> MARK ALL READ
+        </button>
+        <button onClick={() => { if (window.confirm('Clear all alerts?')) clearAllMutation.mutate(); }} className="btn-secondary text-danger hover:text-white hover:bg-danger py-1.5 px-3 text-[10px] flex items-center gap-2">
+          <Trash2 className="w-3.5 h-3.5" strokeWidth={2} /> CLEAR ALL
         </button>
       </div>
 
