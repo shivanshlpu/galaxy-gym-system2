@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/auth.middleware');
+const { verifyToken, optionalVerifyToken } = require('../middleware/auth.middleware');
 const { authLimiter } = require('../middleware/rateLimiter');
 const {
   login,
@@ -14,8 +14,8 @@ const {
 // Rate-limited public routes
 router.post('/login', authLimiter, login);
 
-// Public: Anyone can register an admin account (or consider adding a setup flag if you only want 1 admin)
-router.post('/register', authLimiter, register);
+// Registration: Accepts initial admin setup when 0 users exist; enforces token verification if users exist
+router.post('/register', authLimiter, optionalVerifyToken, register);
 
 router.post('/logout', verifyToken, logout);
 router.get('/me', verifyToken, getMe);

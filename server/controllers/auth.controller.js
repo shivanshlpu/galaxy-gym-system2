@@ -15,6 +15,26 @@ const register = async (req, res, next) => {
       });
     }
 
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 8 characters long.',
+        code: 'WEAK_PASSWORD',
+      });
+    }
+
+    const userCount = await User.countDocuments();
+    // If users already exist in the database, registration requires an authenticated admin caller
+    if (userCount > 0) {
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          error: 'Registration is restricted to existing administrators.',
+          code: 'REGISTRATION_RESTRICTED',
+        });
+      }
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {

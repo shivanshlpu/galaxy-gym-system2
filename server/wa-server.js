@@ -1,4 +1,4 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const qrcode = require('qrcode-terminal');
@@ -9,7 +9,7 @@ const useMongoDBAuthState = require('./utils/useMongoDBAuthState');
 require('dotenv').config();
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
         console.log('✅ Connected to MongoDB for WhatsApp Session');
         mongoose.connection.db.collection('baileysauths').countDocuments({}).then(count => {
@@ -25,7 +25,8 @@ mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTop
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 const app = express();
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API key authentication — all routes except /ping require valid key
 const WA_API_KEY = process.env.WA_API_KEY;
@@ -47,17 +48,23 @@ let isIdle = true;
 let currentQrBase64 = null;
 let sock = null;
 let clearStateFn = null;
+let reconnectAttempts = 0;
 
 async function connectToWhatsApp() {
     isIdle = false;
-    const { state, saveCreds, clearState } = await useMongoDBAuthState();
-    clearStateFn = clearState;
+    const { state, saveCreds } = await useMultiFileAuthState('./.wwebjs_auth');
+
+    const { version } = await fetchLatestBaileysVersion();
+    console.log(`📡 Initializing Baileys WhatsApp client with version v${version.join('.')}`);
 
     sock = makeWASocket({
+        version,
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }), // Disable heavy logging
-        browser: ["GymOS", "Chrome", "1.0.0"],
+        browser: Browsers.macOS('Desktop'),
+        syncFullHistory: false,
+        markOnlineOnConnect: false,
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -81,22 +88,35 @@ async function connectToWhatsApp() {
         if (connection === 'close') {
             isReady = false;
             currentQrBase64 = null;
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('❌ WhatsApp connection closed due to', lastDisconnect.error?.message || lastDisconnect.error, ', reconnecting:', shouldReconnect);
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+            const isBadSession = statusCode === DisconnectReason.badSession;
+            reconnectAttempts++;
+
+            console.log(`❌ WhatsApp connection closed due to ${lastDisconnect?.error?.message || lastDisconnect?.error || 'Unknown Error'} (Status: ${statusCode || 'N/A'}), attempt #${reconnectAttempts}`);
             
-            if (shouldReconnect) {
-                connectToWhatsApp();
-            } else {
-                console.log('👋 Logged out from WhatsApp.');
-                isIdle = true;
+            // If logged out, bad session, or failed repeatedly (3+ times), wipe DB auth state & force fresh QR code generation!
+            if (isLoggedOut || isBadSession || reconnectAttempts >= 3) {
+                console.log('🧹 Session invalid or maximum reconnect attempts reached. Clearing MongoDB session state to generate fresh QR code...');
+                reconnectAttempts = 0;
                 if (clearStateFn) {
                     await clearStateFn();
                 }
+                // Delay briefly before reconnecting with clean state so fresh QR code is generated
+                setTimeout(() => {
+                    connectToWhatsApp();
+                }, 2000);
+            } else {
+                // Retry reconnection with backoff delay
+                setTimeout(() => {
+                    connectToWhatsApp();
+                }, 3000);
             }
         } else if (connection === 'open') {
             console.log('\n✅ WhatsApp Client is READY and CONNECTED!\n');
             isReady = true;
             isIdle = false;
+            reconnectAttempts = 0;
             currentQrBase64 = null;
         }
     });
@@ -143,8 +163,9 @@ app.post('/send', async (req, res) => {
         console.log(`📨 Sent message to ${targetNumber} ${mediaBase64 ? '(with image)' : ''}`);
         res.json({ success: true });
     } catch (error) {
-        console.error('❌ Failed to send message:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Failed to send message:', error.stack || error.message);
+        const isProd = process.env.NODE_ENV === 'production';
+        res.status(500).json({ success: false, error: isProd ? 'Failed to send message.' : error.message });
     }
 });
 
@@ -166,10 +187,13 @@ app.post('/connect', async (req, res) => {
         return res.json({ success: true, message: 'Already connecting' });
     }
     try {
+        reconnectAttempts = 0;
         await connectToWhatsApp();
         res.json({ success: true, message: 'Initialization started' });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Connect Error:', error.stack || error.message);
+        const isProd = process.env.NODE_ENV === 'production';
+        res.status(500).json({ success: false, error: isProd ? 'Connection failed.' : error.message });
     }
 });
 
@@ -178,17 +202,23 @@ app.post('/disconnect', async (req, res) => {
     try {
         isReady = false;
         currentQrBase64 = null;
+        reconnectAttempts = 0;
         if (sock) {
-            await sock.logout();
+            try { await sock.logout(); } catch (e) {}
             sock = null;
         }
-        isIdle = true;
         if (clearStateFn) {
             await clearStateFn();
         }
-        res.json({ success: true, message: 'Disconnected' });
+        // Auto-reconnect with fresh state to generate a new QR code
+        setTimeout(() => {
+            connectToWhatsApp();
+        }, 1000);
+        res.json({ success: true, message: 'Disconnected and generating new QR code...' });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Disconnect Error:', error.stack || error.message);
+        const isProd = process.env.NODE_ENV === 'production';
+        res.status(500).json({ success: false, error: isProd ? 'Disconnection failed.' : error.message });
     }
 });
 
@@ -199,7 +229,7 @@ app.get('/ping', (req, res) => {
 
 // Smart Startup Logic has been moved to mongoose.connect.then()
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.WA_PORT || 3001;
 app.listen(PORT, () => {
     console.log(`\n🚀 Standalone WhatsApp Microservice running on port ${PORT} (Powered by Baileys + MongoDB)`);
 });
