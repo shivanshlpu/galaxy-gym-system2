@@ -49,77 +49,120 @@ let currentQrBase64 = null;
 let sock = null;
 let clearStateFn = null;
 let reconnectAttempts = 0;
+let isConnecting = false;
 
 async function connectToWhatsApp() {
+    if (isConnecting) {
+        console.log('⚠️ WhatsApp connection initialization already in progress...');
+        return;
+    }
+    isConnecting = true;
     isIdle = false;
-    const { state, saveCreds } = await useMultiFileAuthState('./.wwebjs_auth');
 
-    const { version } = await fetchLatestBaileysVersion();
-    console.log(`📡 Initializing Baileys WhatsApp client with version v${version.join('.')}`);
+    if (sock) {
+        try {
+            sock.ev.removeAllListeners();
+            sock.end(undefined);
+        } catch (e) {
+            console.error('Note: error closing previous socket:', e.message);
+        }
+        sock = null;
+    }
 
-    sock = makeWASocket({
-        version,
-        auth: state,
-        printQRInTerminal: false,
-        logger: pino({ level: 'silent' }), // Disable heavy logging
-        browser: Browsers.macOS('Desktop'),
-        syncFullHistory: false,
-        markOnlineOnConnect: false,
-    });
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
-
-        if (qr) {
-            console.log('\n======================================================');
-            console.log('📱 SCAN THIS QR CODE WITH YOUR WHATSAPP LINKED DEVICES:');
-            console.log('======================================================\n');
-            qrcode.generate(qr, { small: true });
+    try {
+        const { state, saveCreds, clearState } = await useMongoDBAuthState();
+        clearStateFn = async () => {
             try {
-                currentQrBase64 = await QRCode.toDataURL(qr);
-                console.log('✅ QR Code generated for frontend.');
-            } catch (err) {
-                console.error('Failed to generate base64 QR', err);
+                await clearState();
+                console.log('✅ Cleared MongoDB auth state.');
+            } catch (e) {
+                console.error('Failed to clear MongoDB auth state:', e.message);
             }
-        }
-
-        if (connection === 'close') {
-            isReady = false;
-            currentQrBase64 = null;
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const isLoggedOut = statusCode === DisconnectReason.loggedOut;
-            const isBadSession = statusCode === DisconnectReason.badSession;
-            reconnectAttempts++;
-
-            console.log(`❌ WhatsApp connection closed due to ${lastDisconnect?.error?.message || lastDisconnect?.error || 'Unknown Error'} (Status: ${statusCode || 'N/A'}), attempt #${reconnectAttempts}`);
-            
-            // If logged out, bad session, or failed repeatedly (3+ times), wipe DB auth state & force fresh QR code generation!
-            if (isLoggedOut || isBadSession || reconnectAttempts >= 3) {
-                console.log('🧹 Session invalid or maximum reconnect attempts reached. Clearing MongoDB session state to generate fresh QR code...');
-                reconnectAttempts = 0;
-                if (clearStateFn) {
-                    await clearStateFn();
+            try {
+                if (fs.existsSync('./.wwebjs_auth')) {
+                    fs.rmSync('./.wwebjs_auth', { recursive: true, force: true });
+                    console.log('✅ Removed local .wwebjs_auth directory.');
                 }
-                // Delay briefly before reconnecting with clean state so fresh QR code is generated
-                setTimeout(() => {
-                    connectToWhatsApp();
-                }, 2000);
-            } else {
-                // Retry reconnection with backoff delay
-                setTimeout(() => {
-                    connectToWhatsApp();
-                }, 3000);
+            } catch (e) {
+                console.error('Failed to remove local auth directory:', e.message);
             }
-        } else if (connection === 'open') {
-            console.log('\n✅ WhatsApp Client is READY and CONNECTED!\n');
-            isReady = true;
-            isIdle = false;
-            reconnectAttempts = 0;
-            currentQrBase64 = null;
-        }
-    });
+        };
+
+        const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1015901307] }));
+        console.log(`📡 Initializing Baileys WhatsApp client with version v${version.join('.')}`);
+
+        sock = makeWASocket({
+            version,
+            auth: state,
+            printQRInTerminal: false,
+            logger: pino({ level: 'silent' }), // Disable heavy logging
+            browser: Browsers.macOS('Desktop'),
+            syncFullHistory: false,
+            markOnlineOnConnect: false,
+        });
+
+        sock.ev.on('creds.update', saveCreds);
+
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+
+            if (qr) {
+                console.log('\n======================================================');
+                console.log('📱 SCAN THIS QR CODE WITH YOUR WHATSAPP LINKED DEVICES:');
+                console.log('======================================================\n');
+                qrcode.generate(qr, { small: true });
+                try {
+                    currentQrBase64 = await QRCode.toDataURL(qr);
+                    console.log('✅ Fresh QR Code generated for frontend.');
+                } catch (err) {
+                    console.error('Failed to generate base64 QR', err);
+                }
+            }
+
+            if (connection === 'close') {
+                isReady = false;
+                currentQrBase64 = null;
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+                const isBadSession = statusCode === DisconnectReason.badSession || statusCode === 403;
+                reconnectAttempts++;
+
+                console.log(`❌ WhatsApp connection closed due to ${lastDisconnect?.error?.message || lastDisconnect?.error || 'Unknown Error'} (Status: ${statusCode || 'N/A'}), attempt #${reconnectAttempts}`);
+                
+                // If logged out, bad session, or failed repeatedly (3+ times), wipe auth state & force fresh QR code generation!
+                if (isLoggedOut || isBadSession || reconnectAttempts >= 3) {
+                    console.log('🧹 Session invalid, logged out, or max reconnect attempts reached. Clearing session state to generate fresh QR code...');
+                    reconnectAttempts = 0;
+                    if (sock) {
+                        try { sock.ev.removeAllListeners(); } catch (e) {}
+                        sock = null;
+                    }
+                    if (clearStateFn) {
+                        await clearStateFn();
+                    }
+                    // Delay briefly before reconnecting with clean state so fresh QR code is generated
+                    setTimeout(() => {
+                        connectToWhatsApp();
+                    }, 1500);
+                } else {
+                    // Retry reconnection with backoff delay
+                    setTimeout(() => {
+                        connectToWhatsApp();
+                    }, 3000);
+                }
+            } else if (connection === 'open') {
+                console.log('\n✅ WhatsApp Client is READY and CONNECTED!\n');
+                isReady = true;
+                isIdle = false;
+                reconnectAttempts = 0;
+                currentQrBase64 = null;
+            }
+        });
+    } catch (err) {
+        console.error('❌ Failed to initialize WhatsApp socket:', err.message);
+    } finally {
+        isConnecting = false;
+    }
 }
 
 // POST /send - Matches exactly what the GymOS server expects
@@ -183,12 +226,18 @@ app.get('/status', (req, res) => {
 
 // Manual Connect 
 app.post('/connect', async (req, res) => {
-    if (!isIdle && !isReady && currentQrBase64) {
-        return res.json({ success: true, message: 'Already connecting' });
+    if (isReady) {
+        return res.json({ success: true, message: 'Already connected' });
+    }
+    if (!isIdle && currentQrBase64) {
+        return res.json({ success: true, message: 'Already connecting, QR code ready' });
     }
     try {
         reconnectAttempts = 0;
-        await connectToWhatsApp();
+        if (clearStateFn && !currentQrBase64) {
+            await clearStateFn();
+        }
+        connectToWhatsApp();
         res.json({ success: true, message: 'Initialization started' });
     } catch (error) {
         console.error('❌ Connect Error:', error.stack || error.message);
@@ -201,10 +250,16 @@ app.post('/connect', async (req, res) => {
 app.post('/disconnect', async (req, res) => {
     try {
         isReady = false;
+        isIdle = false;
         currentQrBase64 = null;
         reconnectAttempts = 0;
         if (sock) {
-            try { await sock.logout(); } catch (e) {}
+            try {
+                sock.ev.removeAllListeners();
+                await sock.logout();
+            } catch (e) {
+                console.log('Note: Error during socket logout:', e.message);
+            }
             sock = null;
         }
         if (clearStateFn) {
